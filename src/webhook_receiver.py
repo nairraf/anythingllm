@@ -44,40 +44,163 @@ def get_github_file(owner, repo, path, ref):
     else:
         return None
     
-def upload_to_anythingllm(workspace_slug, file_path, file_bytes, tags):
-    url = f"http://localhost:3001/api/v1/document/raw-text"
+def upload_to_anythingllm(workspace_slug, file, file_bytes, tags, anythingllm_folder, anythingllm_filename):
+    url = f"http://localhost:3001/api/v1/document/upload/{anythingllm_folder}"
     headers = {
         "Authorization": f"Bearer {ANYTHINGLLM_API_KEY}",
-        "Accept": "appliation/json"
+        "Accept": "application/json"
     }
 
+    files = {"file": (anythingllm_filename, file_bytes)}
     
     data = {
-        "textContent": file_bytes,
-        "addToWorkspaces": workspace_slug,
-        "metadata": {
-            "title": tags["alt_name"],
-            "docAuthor": "Ian",
-            "docsource": "Github"
-        }
+        "addToWorkspaces": workspace_slug
     }
 
+    response = requests.post(url, headers=headers, files=files, data=data)
+    if response.status_code == 200:
+        return response.json()
+    else:
+        return {}
+
+def get_anythingllm_files(foldername):
+    url = f"http://localhost:3001/api/v1/documents/folder/{foldername}"
+    headers = {
+        "Authorization": f"Bearer {ANYTHINGLLM_API_KEY}",
+        "Accept": "application/json"
+    }
+    response = requests.get(url, headers=headers)
+    if response.status_code == 200:
+        return response.json()
+    else:
+        return {}
+
+def delete_anythingllm_files(workspacename, foldername, filename, file_json_name):
+    success = False
+    url = url = f"http://localhost:3001/api/v1/workspace/{workspacename}/update-embeddings"
+    headers = {
+        "Authorization": f"Bearer {ANYTHINGLLM_API_KEY}",
+        "Accept": "application/json"
+    }
+
+    data = {
+        "deletes": [
+            f"{foldername}/{file_json_name}"
+        ]
+    }
+
+    print(f"unlink {foldername}/{file_json_name} for workspace {workspacename}")
     response = requests.post(url, headers=headers, json=data)
-    return response
+    if response.status_code == 200:
+        success = True
+
+
+    return success
+
+def update_anythingllm_pin(workspacename, foldername, filename, file_json_name):
+    url = url = f"http://localhost:3001/api/v1/workspace/{workspacename}/update-pin"
+    headers = {
+        "Authorization": f"Bearer {ANYTHINGLLM_API_KEY}",
+        "Accept": "application/json"
+    }
+
+    pinned_filename = [
+        "README.md",
+        "technologies.md",
+        "PROJECT_PLAN.md"
+    ]
+
+    pinstatus = False
+    for f in pinned_filename:
+        if f in filename:
+            pinstatus = True
+            break
+    
+    data = {
+        "docPath": f"{foldername}/{file_json_name}",
+        "pinStatus": pinstatus
+    }
+
+    print(f"pining {foldername}/{file_json_name} in workspace {workspacename}: pinStatus: {pinstatus}")
+    response = requests.post(url, headers=headers, json=data)
+    print(response.status_code)
+    if response.status_code == 200:
+        print(response.json())
+        return True
+    return False
+
+def create_anythingllm_folder(foldername):
+    url = url = f"http://localhost:3001/api/v1/document/create-folder"
+    headers = {
+        "Authorization": f"Bearer {ANYTHINGLLM_API_KEY}",
+        "Accept": "application/json"
+    }
+
+    data = {
+        "name": foldername
+    }
+
+    print (f"creating folder {foldername}")
+    response = requests.post(url, headers=headers, json=data)
+    if response.status_code == 200:
+        return True
+    return False
+
+def delete_anythingllm_folder(foldername):
+    url = url = f"http://localhost:3001/api/v1/document/remove-folder"
+    headers = {
+        "Authorization": f"Bearer {ANYTHINGLLM_API_KEY}",
+        "Accept": "application/json"
+    }
+
+    data = {
+        "name": foldername
+    }
+
+    print (f"deleting folder {foldername}")
+    response = requests.delete(url, headers=headers, json=data)
+    if response.status_code == 200:
+        print(response.json())
+        return True
+    return False
+
+def move_anythingllm_files(from_json,to_json):
+    url = url = f"http://localhost:3001/api/v1/document/move-files"
+    headers = {
+        "Authorization": f"Bearer {ANYTHINGLLM_API_KEY}",
+        "Accept": "application/json"
+    }
+
+    data = {
+        "files": [
+            {
+                "from": from_json,
+                "to": to_json
+            }
+        ]
+    }
+
+    print (f"moving from: {from_json} to: {to_json}")
+    response = requests.post(url, headers=headers, json=data)
+    if response.status_code == 200:
+        return True
+    return False
 
 def async_processor(data):
     # Log the received data
-    tags = {}
+    tags = []
 
     ref = data.get("ref", "N/A")
     branch = ref.split("/")[-1]
-    tags["branch"]=branch
-    tags["source"]="github"
+    tags.append(f"branch:{branch}")
+    tags.append(f"source:github")
 
     if branch == "main":
         anythingllm_workspace = "selos-main"
     elif branch == "development":
-        anythingllm_workspace = "selos"
+        anythingllm_workspace = "selos-development"
+    elif "feature" in branch:
+        anythingllm_workspace = "selos-experiments"
 
     owner_name = data.get("repository", {}).get("owner", {}).get("name", "Unknown")
     before_hash = data.get("before", "N/A")
@@ -85,29 +208,71 @@ def async_processor(data):
     repo_name = data.get("repository", {}).get("name", "Unknown")
     # full_repo_name = data.get("repository", {}).get("full_name", "Unknown")
     
+    #anythingllm_workspace = "test" # force to test when testing
+    anythingllm_folder_name = f"git-{repo_name}-{branch}"
+    
+    # get the github changes files for this push
     files = get_github_changes(owner_name, repo_name, before_hash, after_hash)
+
+    # get a list of all documents that exist in the anythingllm document folder
+    response = get_anythingllm_files(anythingllm_folder_name)
+    anythingllm_docs = {} # initialize a blank list
+
+    if "documents" in response:
+        anythingllm_docs = get_anythingllm_files(anythingllm_folder_name).get("documents", [])
+
+    #print(anythingllm_docs)
+    ## create anythingllm junk folder. you can't delete files, but you can move files, create folders and delete folders...
+    ## so, for files that require re-indexing, we move the files to the junk folder, re-upload them, and after the run is done
+    ## delete the junk folder which deletes the files
+    junk_folder_name = "junk"
+    create_anythingllm_folder(junk_folder_name)
+
     for f in files:
         if f.endswith(".cs"):
-            tags["type"]="cs"
+            tags.append(f"type:cs")
         elif f.endswith(".xaml"):
-            tags["type"]="xaml"
+            tags.append(f"type:xaml")
         elif f.endswith(".md"):
-            tags["type"]="md"
+            tags.append(f"type:md")
         else:
             continue
         
-        tags["alt_name"]=f.replace("/","_")
-        raw_data = get_github_file(owner_name, repo_name, f, ref)
+        file_path = os.path.dirname(f).replace("/","_")
+        file_name = os.path.basename(f)
+        anythingllm_filename = f"{anythingllm_folder_name.replace('git-','')}_{file_path}_{file_name}"
+
+        docexists = False
+        curdoc = {}
+        if anythingllm_docs:
+            print("looping through docs")
+            for doc in anythingllm_docs:
+                if doc.get("title") == anythingllm_filename:
+                    docexists = True
+                    curdoc = doc
+                    break
+
+        if docexists:
+            print(f"Document {anythingllm_filename} exists, cleaning, deleting and re-uploading")
+            # unlink the files from the workspace
+            delete_anythingllm_files(anythingllm_workspace, anythingllm_folder_name, anythingllm_filename, curdoc.get("name"))
+            filefrom = f"{anythingllm_folder_name}/{curdoc.get('name')}"
+            fileto = filefrom.replace(f"git-{repo_name}-{branch}/",f"{junk_folder_name}/")
+            move_anythingllm_files(filefrom, fileto)
+        else:
+            print(f"Document {anythingllm_filename} Doesn't Exist, uploading to workspace: {anythingllm_workspace}")
         
-        print(raw_data)
 
-        anythingllm_workspace = "test" # force to test when testing
-        print(f"uploading file: {f} to workspace {anythingllm_workspace} with tags {tags}")
+        raw_data = get_github_file(owner_name, repo_name, f, ref)
+        response = upload_to_anythingllm(anythingllm_workspace,f, raw_data, tags, anythingllm_folder_name, anythingllm_filename)
+        #print(response)
+        if response:
+            update_anythingllm_pin(anythingllm_workspace, anythingllm_folder_name, anythingllm_filename, response["documents"][0].get("name") )
+        
+    # cleanup junk
+    delete_anythingllm_folder(junk_folder_name)
+    print(f"Upload and Index for {anythingllm_folder_name}/{anythingllm_filename} in {anythingllm_workspace} Complete")
 
-        response = upload_to_anythingllm(anythingllm_workspace,f, raw_data, tags)
-
-        print(f"Upload response status: {response.status_code}")
-        #print(f"Upload response content: {response.text}")
 
 
 @app.route('/webhook', methods=['POST'])
