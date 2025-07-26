@@ -6,12 +6,19 @@ import hmac
 import hashlib
 import os
 import requests
+import logging
 
 app = Flask(__name__)
 
 GITHUB_SECRET = os.getenv("GITHUB_SELOS_SECRET").encode()  # Must be bytes
 GITHUB_TOKEN = os.getenv("GITHUB_API_KEY")
 ANYTHINGLLM_API_KEY = os.getenv("ANYTHINGLLM_API_KEY")
+
+logging.basicConfig(
+    filename='/home/ian/github_webhook.log',
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
 
 def verify_github_signature(payload, signature_header):
     # Remove "sha256=" prefix
@@ -58,6 +65,7 @@ def upload_to_anythingllm(workspace_slug, file, file_bytes, tags, anythingllm_fo
     }
 
     response = requests.post(url, headers=headers, files=files, data=data)
+    logging.info(f"upload_to_anythingllm status code: {response.status_code}")
     if response.status_code == 200:
         return response.json()
     else:
@@ -70,6 +78,7 @@ def get_anythingllm_files(foldername):
         "Accept": "application/json"
     }
     response = requests.get(url, headers=headers)
+    logging.info(f"get_anythingllm_files status code: {response.status_code}")
     if response.status_code == 200:
         return response.json()
     else:
@@ -89,7 +98,7 @@ def delete_anythingllm_files(workspacename, foldername, filename, file_json_name
         ]
     }
 
-    print(f"unlink {foldername}/{file_json_name} for workspace {workspacename}")
+    logging.info(f"unlink {foldername}/{file_json_name} for workspace {workspacename}")
     response = requests.post(url, headers=headers, json=data)
     if response.status_code == 200:
         success = True
@@ -121,11 +130,10 @@ def update_anythingllm_pin(workspacename, foldername, filename, file_json_name):
         "pinStatus": pinstatus
     }
 
-    print(f"pining {foldername}/{file_json_name} in workspace {workspacename}: pinStatus: {pinstatus}")
+    logging.info(f"pining {foldername}/{file_json_name} in workspace {workspacename}: pinStatus: {pinstatus}")
     response = requests.post(url, headers=headers, json=data)
-    print(response.status_code)
+    logging.info(f"update_anythingllm_pin response code {response.status_code}")
     if response.status_code == 200:
-        print(response.json())
         return True
     return False
 
@@ -140,8 +148,9 @@ def create_anythingllm_folder(foldername):
         "name": foldername
     }
 
-    print (f"creating folder {foldername}")
+    logging.info(f"creating folder {foldername}")
     response = requests.post(url, headers=headers, json=data)
+    logging.info(f"create_anythingllm_folder response code {response.status_code}")
     if response.status_code == 200:
         return True
     return False
@@ -157,10 +166,10 @@ def delete_anythingllm_folder(foldername):
         "name": foldername
     }
 
-    print (f"deleting folder {foldername}")
+    logging.info(f"deleting folder {foldername}")
     response = requests.delete(url, headers=headers, json=data)
+    logging.info(f"delete_anythingllm_folder response code {response.status_code}")
     if response.status_code == 200:
-        print(response.json())
         return True
     return False
 
@@ -180,8 +189,9 @@ def move_anythingllm_files(from_json,to_json):
         ]
     }
 
-    print (f"moving from: {from_json} to: {to_json}")
+    logging.info(f"moving from: {from_json} to: {to_json}")
     response = requests.post(url, headers=headers, json=data)
+    logging.info(f"move_anythingllm_files response code {response.status_code}")
     if response.status_code == 200:
         return True
     return False
@@ -221,7 +231,8 @@ def async_processor(data):
     if "documents" in response:
         anythingllm_docs = get_anythingllm_files(anythingllm_folder_name).get("documents", [])
 
-    #print(anythingllm_docs)
+    #logging.info(anythingllm_docs)
+
     ## create anythingllm junk folder. you can't delete files, but you can move files, create folders and delete folders...
     ## so, for files that require re-indexing, we move the files to the junk folder, re-upload them, and after the run is done
     ## delete the junk folder which deletes the files
@@ -245,7 +256,7 @@ def async_processor(data):
         docexists = False
         curdoc = {}
         if anythingllm_docs:
-            print("looping through docs")
+            logging.info("looping through docs")
             for doc in anythingllm_docs:
                 if doc.get("title") == anythingllm_filename:
                     docexists = True
@@ -253,25 +264,25 @@ def async_processor(data):
                     break
 
         if docexists:
-            print(f"Document {anythingllm_filename} exists, cleaning, deleting and re-uploading")
+            logging.info(f"Document {anythingllm_filename} exists, cleaning, deleting and re-uploading")
             # unlink the files from the workspace
             delete_anythingllm_files(anythingllm_workspace, anythingllm_folder_name, anythingllm_filename, curdoc.get("name"))
             filefrom = f"{anythingllm_folder_name}/{curdoc.get('name')}"
             fileto = filefrom.replace(f"git-{repo_name}-{branch}/",f"{junk_folder_name}/")
             move_anythingllm_files(filefrom, fileto)
         else:
-            print(f"Document {anythingllm_filename} Doesn't Exist, uploading to workspace: {anythingllm_workspace}")
+            logging.info(f"Document {anythingllm_filename} Doesn't Exist, uploading to workspace: {anythingllm_workspace}")
         
 
         raw_data = get_github_file(owner_name, repo_name, f, ref)
         response = upload_to_anythingllm(anythingllm_workspace,f, raw_data, tags, anythingllm_folder_name, anythingllm_filename)
-        #print(response)
+        #logging.info(response)
         if response:
             update_anythingllm_pin(anythingllm_workspace, anythingllm_folder_name, anythingllm_filename, response["documents"][0].get("name") )
         
     # cleanup junk
     delete_anythingllm_folder(junk_folder_name)
-    print(f"Upload and Index for {anythingllm_folder_name}/{anythingllm_filename} in {anythingllm_workspace} Complete")
+    logging.info(f"Upload and Index for {anythingllm_folder_name}/{anythingllm_filename} in {anythingllm_workspace} Complete")
 
 
 
