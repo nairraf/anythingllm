@@ -34,7 +34,11 @@ def collect_files(repo_path):
                 yield filepath, file, TAGS_MAP[ext]
 
 def root_to_label(path):
-    return os.path.dirname(path).replace("/", "_").replace("\\", "_").strip("_")
+    root_name = os.path.dirname(path).replace("/", "_").replace("\\", "_").strip("_")
+    if root_name.startswith('_'):
+        print(root_name)
+        root_name = root_name[1:]
+    return root_name
 
 
 if __name__ == "__main__":
@@ -52,13 +56,20 @@ if __name__ == "__main__":
 
     for filepath, filename, tag in collect_files(REPO_PATH):
         # Clean file name to ensure uniqueness inside AnythingLLM
+        #file_path = os.path.dirname(filepath).replace("/","_")
+        #file_name = os.path.basename(filename)
+
         folder_safe = root_to_label(filepath.replace(REPO_PATH, ""))
-        llm_filename = f"{folder_safe}_{filename}".replace(" ", "_").replace("/", "_")
+        if folder_safe:
+            llm_filename = f"{anythingllm_workspace}_{folder_safe}_{filename}".replace("/", "_")
+        else:
+            # elements with no parent folder don't have a folder_safe, so ommit it to resolve the __ problem in names
+            llm_filename = f"{anythingllm_workspace}_{filename}".replace("/", "_")
 
         with open(filepath, "rb") as f:
             file_bytes = f.read()
 
-        print(f"⬆️ Uploading {filename} with tag [{tag}]...")
+        print(f"⬆️ Uploading {filename} to {llm_filename} with tag [{tag}]...")
         anythingllm_api.upload_to_anythingllm(
             workspace_slug=anythingllm_workspace,
             file=filename,

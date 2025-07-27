@@ -48,13 +48,13 @@ def get_github_file(owner, repo, path, ref):
     data = response.json()
 
     if data.get("encoding") == "base64":
-        content = data["content"]
-        return content
+        base64_content = data["content"]
+        decoded_bytes = base64.b64decode(base64_content)
+        utf8_text = decoded_bytes.decode("utf-8")
+        return utf8_text
     else:
         return None
     
-
-
 def async_processor(data):
     # Log the received data
     tags = []
