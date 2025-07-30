@@ -14,6 +14,8 @@ docker run -d --restart unless-stopped --name anythingllm \
   --shm-size="1g" \
   --cap-add SYS_ADMIN \
   -p 3001:3001 \
+  -v /etc/localtime:/etc/localtime:ro \
+  -v /etc/timezone:/etc/timezone:ro \
   -v /data01/anythingllm-storage:/app/server/storage \
   -v /data01/anythingllm-storage/.env:/app/server/.env \
   -e STORAGE_DIR="/app/server/storage" \
