@@ -1,0 +1,15 @@
+[Unit]
+Description=BlobFuse2 Mount Service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=forking
+ExecStart=/usr/bin/blobfuse2 mount /azstorage --config-file=/home/ian/blobfuse2.yaml --tmp-path=/data01/blobfuse2tmp
+ExecStop=/usr/bin/fusermount -uz /azstorage
+Restart=on-failure
+User=ian
+Group=ian
+
+[Install]
+WantedBy=multi-user.target
