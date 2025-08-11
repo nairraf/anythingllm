@@ -15,22 +15,48 @@ db = DatabaseManager(DB_File)
 # )
 #
 #db.commit()
-url = "https://learn.microsoft.com/en-us/dotnet/maui/?view=net-maui-9.0"
-api_url = urlparse(url)
-basename = api_url.netloc
 
 
-db.set_site_config(basename)
+db.set_site_config('learn.microsoft.com')
 
 
-print (f"scraping '{url}' with site config: {db.site_name}")
-markdown = scrape_to_markdown(url, db.site_parent_element, db.site_child_element, db.site_base_url)
-print (f"scraping completed, updating database")
-db.insert_page(
-    url=url,
-    content=markdown,
-    status="test"
-)
+# print (f"scraping '{url}' with site config: {db.site_name}")
+# markdown = scrape_to_markdown(url, db.site_parent_element, db.site_child_element, db.site_base_url)
+# print (f"scraping completed, updating database")
+# db.insert_page(
+#     url=url,
+#     content=markdown,
+#     status="test"
+# )
+#db.commit()
+
+new_sites = db.get_pages()
+
+for site in new_sites:
+    print(f"""
+        Updating the following page to complete:
+        
+        page_id: {site['page_id']}
+        url: {site['url']}
+        status: {site['status']}
+    """)
+    api_url = urlparse(site['url'])
+    basename = api_url.netloc
+    
+    anythingllm_folder = f"{site['category']}"
+    filename=f"{api_url.netloc}-{(api_url.path).replace('/','_')}{(api_url.query)}"
+    anythingllm_filename = f"{anythingllm_folder}-{filename}"
+
+    try:
+        anythingllm_api.upload_to_anythingllm(
+            workspace_slug=site['workspaces'],
+            content=site['content'],
+            anythingllm_folder=anythingllm_folder,
+            anythingllm_filename=anythingllm_filename
+        )
+        db.update_page_status(site['page_id'])
+    except:
+        print("that failed")
 
 
 
@@ -44,5 +70,5 @@ db.insert_page(
 # )
 
 
-db.commit()
+
 db.close()

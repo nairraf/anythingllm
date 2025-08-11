@@ -6,14 +6,14 @@ GITHUB_SECRET = os.getenv("GITHUB_SELOS_SECRET").encode()  # Must be bytes
 GITHUB_TOKEN = os.getenv("GITHUB_API_KEY")
 ANYTHINGLLM_API_KEY = os.getenv("ANYTHINGLLM_API_KEY")
 
-def upload_to_anythingllm(workspace_slug, file, file_bytes, tags, anythingllm_folder, anythingllm_filename):
+def upload_to_anythingllm(workspace_slug, content, anythingllm_folder, anythingllm_filename):
     url = f"https://aura.farrworks.com/api/v1/document/upload/{anythingllm_folder}"
     headers = {
         "Authorization": f"Bearer {ANYTHINGLLM_API_KEY}",
         "Accept": "application/json"
     }
 
-    files = {"file": (anythingllm_filename, file_bytes)}
+    files = {"file": (anythingllm_filename, content)}
     
     data = {
         "addToWorkspaces": workspace_slug
@@ -25,6 +25,48 @@ def upload_to_anythingllm(workspace_slug, file, file_bytes, tags, anythingllm_fo
         return response.json()
     else:
         return {}
+
+def upload_link(link, url, workspaces):
+    url = f"http://localhost:3001/api/v1/document/upload-link"
+    headers = {
+        "Authorization": f"Bearer {ANYTHINGLLM_API_KEY}",
+        "Accept": "application/json"
+    }
+
+    json_data = {
+        "link": url,
+        "addToWorkspaces": workspaces
+    }
+
+    print(f"scraping site {link}")
+    response = requests.post(url, headers=headers, json=json_data)
+    print(f"scrape status code: {response.status_code}")
+    if response.status_code == 200:
+        return True
+    return False
+
+def upload_to_anythingllm_rawtext(workspace_slug, content, title, url, description):
+    url = f"http://localhost:3001/api/v1/document/raw-text"
+    headers = {
+        "Authorization": f"Bearer {ANYTHINGLLM_API_KEY}",
+        "Accept": "application/json"
+    }
+
+    json_data = {
+        "textContent": content,
+        "addToWorkspaces": workspace_slug,
+        "metadata": {
+            "title": title,
+            "docSource": url,
+            "description": description
+        }
+    }
+
+    response = requests.post(url, headers=headers, json=json_data)
+    print(f"scrape status code: {response.status_code}")
+    if response.status_code == 200:
+        return True
+    return False
 
 def get_anythingllm_files(foldername):
     url = f"https://aura.farrworks.com/api/v1/documents/folder/{foldername}"

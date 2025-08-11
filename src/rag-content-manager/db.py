@@ -112,17 +112,47 @@ class DatabaseManager:
     def get_pages(self, status="new"):
         """returns an iterable cursor object that can loop through all rows. this saves loading the whole dataset in memory"""
         try:
+            parameters = (
+                status,
+            )
             self.cursor.execute(
                 """
                     SELECT page_id, url, content, status, category, workspaces, last_update
                     FROM pages
                     WHERE
                         status = ?
-                """, (status)
+                """, parameters
             )
             return self.cursor
         except sqlite3.Error as e:
             print(f"database error: {e}")
+            return None
+        
+    def update_page_status(self, page_id, status="complete"):
+        """
+        set the complete flag for a specific page_id
+        uses a seperate cursor to not interfere with any other DB operations
+        """
+        try:
+            cursor = self.conn.cursor()
+            parameters = (
+                status,
+                page_id,
+            )
+            cursor.execute(
+                """
+                    UPDATE pages
+                    SET status=?
+                    WHERE page_id=?;
+                """, parameters
+            )
+            # since this is a seperate operation, it will be lost when the cursor closes/method exists, so we force a commit
+            self.conn.commit()
+            return True
+        except sqlite3.Error as e:
+            print(f"database error: {e}")
+            self.conn.rollback()
+            return None
 
     def commit(self):
         self.conn.commit()
