@@ -1,4 +1,5 @@
 #import trafilatura
+import textwrap
 import html2text
 import os
 import re
@@ -26,7 +27,7 @@ def make_links_absolute(markdown_content, base_url):
 
 
 
-def scrape_to_markdown(url, parent_selector, content_selector, base_url):
+def scrape_to_markdown(url, parent_selector, content_selector, base_url, tags=[], category="mslearn"):
     """
     Navigates to a URL, finds a parent container, then looks for a non-empty
     child element to extract its content, convert it to markdown, and save it.
@@ -36,6 +37,7 @@ def scrape_to_markdown(url, parent_selector, content_selector, base_url):
             browser = p.chromium.launch()
             page = browser.new_page()
             page.goto(url, wait_until='domcontentloaded')
+            title = page.title()
 
             parent_element = page.locator(parent_selector).first
             if not parent_element:
@@ -65,6 +67,15 @@ def scrape_to_markdown(url, parent_selector, content_selector, base_url):
             h = html2text.HTML2Text()
             h.body_width = 0
             markdown_content = make_links_absolute(h.handle(html_content),base_url)
+            metadata = f"""
+                ---
+                title: {title}
+                source_url: {url}
+                tags: {tags}
+                category: {category}
+                ---
+            """
+            markdown_content = f"{textwrap.dedent(metadata)}\n\n{markdown_content}"
 
             # (The code for making links absolute goes here, unchanged)
             #filename = url.strip('https://').replace('/','_').replace('?','').replace('=','') + '.md'

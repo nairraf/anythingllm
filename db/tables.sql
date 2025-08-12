@@ -11,10 +11,12 @@ CREATE TABLE pages (
 	page_id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
 	site_id INTEGER NOT NULL,
 	url TEXT,
+	title TEXT,
 	content TEXT,
     content_hash TEXT,
 	status TEXT,
-	category TEXT,
+	job TEXT,
+	tags TEXT,
 	workspaces TEXT, 
 	last_update DATETIME,
 	UNIQUE(url)

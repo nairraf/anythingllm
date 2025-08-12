@@ -1,5 +1,6 @@
 from datetime import datetime
 import hashlib
+import json
 import sqlite3
 import textwrap
 
@@ -24,16 +25,35 @@ class DatabaseManager:
         return self._site_config_set
     
     def insert_site(self, base_url, parent_element, child_element, name):
-        """Inserts a single site into the sites table"""
+        """
+        Inserts a single site into the sites table
+        """
         try:
-            
-            self.cursor.execute("INSERT INTO sites (base_url, parent_element, child_element, name) VALUES (?, ?, ?, ?)", (base_url, parent_element, child_element, name))
+            parameters = (
+                base_url,
+                parent_element,
+                child_element,
+                name
+            )
+            self.cursor.execute(
+                """
+                    INSERT INTO sites (base_url, parent_element, child_element, name)
+                    VALUES (?, ?, ?, ?)
+                """, parameters
+            )
         except sqlite3.IntegrityError:
+            self.conn.rollback()
             print(f"an entry for site: {name} already exists - skipping")
 
     def set_site_config(self, base_url):
         try:
-            self.cursor.execute("SELECT site_id, base_url, parent_element, child_element, name FROM sites;")
+            self.cursor.execute(
+                """
+                    SELECT site_id, base_url, parent_element, child_element, name 
+                    FROM sites
+                    WHERE base_url = ?;
+                """, (base_url,)
+            )
             results = self.cursor.fetchall()
             if results and len(results) == 1:
                 self.site_id = results[0]["site_id"]
@@ -44,7 +64,7 @@ class DatabaseManager:
                 self._site_config_set = True
                 return True
             else:
-                return False 
+                raise ValueError(f"Invalid Site Configuration: base_url: {base_url} not found")
         except sqlite3.Error as e:
             print(f"database error: {e}")
 
@@ -72,43 +92,78 @@ class DatabaseManager:
         encoded = content.encode('utf-8')
         return (hashlib.sha256(encoded)).hexdigest()
 
-    def insert_page(self, url, content="", status="new", category="mslearn", workspaces="selos-main, selos-development, selos-experiments"):
-        """Inserts a page into the pages table"""
+    def insert_new_page(self, url, title="", status="new", job="", tags=[], workspaces=""):
+        """
+        Inserts a page into the pages table
+        """
         if self._site_config_set == False:
-            return print("You must set the site config before attempting to insert a page!")
+            print("You must set the site config before attempting to insert a page!")
+            raise ValueError("Site Config Not Set")
         
         try:
             now = datetime.now()
             sqlite_datetime_str = now.strftime('%Y-%m-%d %H:%M:%S')
-            content_hash = self.content_hash(content)
+
             parameters = (
                 self.site_id,
                 url,
-                content,
-                content_hash,
+                title,
                 status,
-                category,
+                job,
+                json.dumps(tags),
                 workspaces,
                 sqlite_datetime_str
             )
             self.cursor.execute(
                 """
                     INSERT INTO pages 
-                    (site_id, url, content, content_hash, status, category, workspaces, last_update) 
+                    (site_id, url, title, status, job, tags, workspaces, last_update) 
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                     ON CONFLICT (url) DO UPDATE SET
-                        content = excluded.content,
-                        content_hash = excluded.content_hash,
-                        status = excluded.status,
-                        category = excluded.category,
+                        title = excluded.title,
+                        job = excluded.job,
+                        tags = excluded.tags,
                         workspaces = excluded.workspaces,
                         last_update = excluded.last_update
-                    WHERE content_hash != excluded.content_hash
                 """, parameters
             )
         except sqlite3.Error as e:
+            self.conn.rollback()
             print(f"database error: {e}")
     
+    def update_page(self, page_id, content, status="complete"):
+        """
+        Updates a page into the pages table
+        uses a seperate cursor to not interfere with any other DB operations
+        """
+        try:
+            now = datetime.now()
+            sqlite_datetime_str = now.strftime('%Y-%m-%d %H:%M:%S')
+            content_hash = self.content_hash(content)
+            
+            parameters = (
+                content,
+                content_hash,
+                status,
+                sqlite_datetime_str,
+                page_id
+            )
+            cursor = self.conn.cursor()
+            cursor.execute(
+                """
+                    UPDATE pages
+                    SET content=?, content_hash=?, status=?, last_update=''
+                    WHERE page_id=? and content_hash != excluded.content_hash;
+                """, parameters
+            )
+            # we have to commit since it's a seperate cursor
+            self.conn.commit()
+            return True
+        except sqlite3.Error as e:
+            self.conn.rollback()
+            print(f"database error: {e}")
+            return None
+
     def get_pages(self, status="new"):
         """returns an iterable cursor object that can loop through all rows. this saves loading the whole dataset in memory"""
         try:
@@ -117,7 +172,7 @@ class DatabaseManager:
             )
             self.cursor.execute(
                 """
-                    SELECT page_id, url, content, status, category, workspaces, last_update
+                    SELECT page_id, url, title, content, status, job, tags, workspaces, last_update
                     FROM pages
                     WHERE
                         status = ?
@@ -154,9 +209,13 @@ class DatabaseManager:
             self.conn.rollback()
             return None
 
-    def commit(self):
-        self.conn.commit()
+    def commit(self) -> bool:
+        try:
+            self.conn.commit()
+            return True
+        except sqlite3.Error as e:
+            print(f"database error: {e}")
+            return False
 
     def close(self):
         self.conn.close()
-        print("Database connection closed.")

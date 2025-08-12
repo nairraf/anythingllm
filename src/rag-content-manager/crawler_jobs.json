@@ -1,0 +1,15 @@
+[
+    {
+        "url": "https://learn.microsoft.com/en-us/dotnet/communitytoolkit/maui/",
+        "globs": ["https://learn.microsoft.com/en-us/dotnet/communitytoolkit/**"],
+        "concurrency": 40,
+        "job": "mslearn-maui-community",
+        "workspaces": "selos-main, selos-development, selos-experiments",
+        "tags": [
+            "C#",
+            "MAUI",
+            "mslearn",
+            "community"
+        ]
+    }
+]
