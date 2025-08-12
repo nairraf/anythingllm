@@ -134,13 +134,16 @@ def get_links_json() -> list[dict]:
         print(f"Error reading config file: {e}")
         exit(1)
 
-async def crawl_site(db: DatabaseManager, job: dict) -> None:
+async def crawl_site(db: DatabaseManager, job: dict, max_pages: int = None, dbupdates: bool = True) -> None:
     """
     Performs a crawl for a specific site job
 
     crawls the site, finds all the links for that specific job, and updates the database with discovered URL's
     """
     print(f"    - performing crawl for job: {job['job']}")
+
+    if max_pages is not None and max_pages > 0:
+        print(f"      MAXURLS of {max_pages} detected!")
 
     try:
         # get the current site config that we should use for this base url
@@ -154,27 +157,41 @@ async def crawl_site(db: DatabaseManager, job: dict) -> None:
             playwright, 
             job['url'], 
             job['globs'],
-            max_concurrency=job.get('concurrency', 20) # Use 'concurrency' from job or default to 20
+            max_concurrency=job.get('concurrency', 20), # Use 'concurrency' from job or default to 20
+            url_normalization_rules=job.get('url_normalization_rules', {}),
+            max_urls_to_find=max_pages
         )
 
-        print(f"      - inserting {len(pages_found)} url's in db for job: {job['job']}")
+        if dbupdates:
+            print(f"      - inserting {len(pages_found)} url's in db for job: {job['job']}")
+
         try:
             # insert the pages
             for page in pages_found:
-                db.insert_new_page(
-                    url=page['url'], 
-                    title=page['title'],
-                    job=job['job'],
-                    tags=job['tags'],
-                    workspaces=job['workspaces']
-                )
+                if dbupdates:
+                    db.insert_new_page(
+                        normalized_url=page['normalized_url'],
+                        original_url=page['original_url'],
+                        title=page['title'],
+                        job=job['job'],
+                        tags=job['tags'],
+                        workspaces=job['workspaces']
+                    )
+                else:
+                    print(page['normalized_url'])
         except Exception as e:
             print(f"Error Encountered: {e}")
 
+
 async def crawler_mode(args: argparse.ArgumentParser, db: DatabaseManager) -> None:
+    """
+    asynchronously calls the web crawler for specified or all jobs and commits all DB changes
+    """
     print("\ncrawler mode\n")
 
     job_list = get_links_json()
+
+    max_urls = args.maxurls
 
     run_specific_job = False
     if len(args.jobs) > 0:
@@ -184,17 +201,26 @@ async def crawler_mode(args: argparse.ArgumentParser, db: DatabaseManager) -> No
             for j in job_list:
                 if "job" in j and j["job"] == argjob:
                     print(f" - Now processing job: {argjob}")
-                    await crawl_site(db, j)
+                    await crawl_site(db, j, max_urls, args.db_updates)
                     break
     
     # only perform the full job list if there were no jobs specified
     if run_specific_job == False:
         print("will perform a full job run")
         for job in job_list:
-            await crawl_site(db, job)
+            await crawl_site(db, job, max_urls, args.db_updates)
     
-    print(f"      - committing all changes in the DB")
-    db.commit()
+    if args.db_updates:
+        print(f"      - committing all changes in the DB")
+        db.commit()
+
+def download(db):
+    """
+    calls get_web_markdown for all pages in 'new' status and updates the database
+    """
+
+    for page in db.get_pages():
+        print(page['normalized_url'])
 
 
 if __name__ == "__main__":
@@ -205,13 +231,13 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
-        "--crawler",
+        "-c", "--crawler",
         action="store_true",
         help="Enables crawler mode"
     )
 
     parser.add_argument(
-        "--jobs",
+        "-j", "--jobs",
         type=lambda s: [item.strip() for item in s.split(',')], # Custom type to split by comma and strip whitespace
         default=[], # Default to an empty list if no jobs are provided
         help=
@@ -226,14 +252,39 @@ if __name__ == "__main__":
     """
     )
 
+    parser.add_argument(
+        "--maxurls",
+        type=int,
+        default=None,
+        help="maximum amount of pages for the crawler to return. requires --crawler"
+    )
+
+    parser.add_argument(
+        "-db", "--db_updates",
+        action="store_false",
+        help="bypasses all database updates, and prints the updates to console"
+    )
+
+
+    parser.add_argument(
+        "-d", "--download",
+        action="store_true",
+        help="Enables content download mode. Must be run after crawler jobs have completed successfully"
+    )
+
 
     args = parser.parse_args()
 
     db = DatabaseManager(DB_File)
 
+    if args.db_updates == False:
+        print("\n NO DATABASE UPDATES WILL BE PERFORMED - OUTPUT TO CONSOLE\n")
+
     # parse through the args
     if args.crawler:
         asyncio.run(crawler_mode(args, db))
-
+    
+    if args.download:
+        download(db)
 
     db.close()

@@ -92,7 +92,7 @@ class DatabaseManager:
         encoded = content.encode('utf-8')
         return (hashlib.sha256(encoded)).hexdigest()
 
-    def insert_new_page(self, url, title="", status="new", job="", tags=[], workspaces=""):
+    def insert_new_page(self, normalized_url, original_url, title="", status="new", job="", tags=[], workspaces=""):
         """
         Inserts a page into the pages table
         """
@@ -106,7 +106,8 @@ class DatabaseManager:
 
             parameters = (
                 self.site_id,
-                url,
+                normalized_url,
+                original_url,
                 title,
                 status,
                 job,
@@ -117,9 +118,9 @@ class DatabaseManager:
             self.cursor.execute(
                 """
                     INSERT INTO pages 
-                    (site_id, url, title, status, job, tags, workspaces, last_update) 
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                    ON CONFLICT (url) DO UPDATE SET
+                    (site_id, normalized_url, original_url, title, status, job, tags, workspaces, last_update) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT (normalized_url) DO UPDATE SET
                         title = excluded.title,
                         job = excluded.job,
                         tags = excluded.tags,
@@ -172,10 +173,11 @@ class DatabaseManager:
             )
             self.cursor.execute(
                 """
-                    SELECT page_id, url, title, content, status, job, tags, workspaces, last_update
+                    SELECT page_id, normalized_url, original_url, title, content, status, job, tags, workspaces, last_update
                     FROM pages
                     WHERE
                         status = ?
+                    ORDER BY normalized_url
                 """, parameters
             )
             return self.cursor
@@ -212,6 +214,14 @@ class DatabaseManager:
     def commit(self) -> bool:
         try:
             self.conn.commit()
+            return True
+        except sqlite3.Error as e:
+            print(f"database error: {e}")
+            return False
+        
+    def rollback(self) -> bool:
+        try:
+            self.conn.rollback()
             return True
         except sqlite3.Error as e:
             print(f"database error: {e}")

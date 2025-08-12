@@ -10,6 +10,11 @@
             "MAUI",
             "mslearn",
             "community"
-        ]
+        ],
+        "url_normalization_rules": {
+            "sort_query_params": true,
+            "ignored_query_parameters": ["source", "tabs"],
+            "remove_trailing_slash_from_paths": true
+        }
     }
 ]

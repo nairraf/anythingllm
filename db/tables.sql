@@ -10,7 +10,8 @@ CREATE TABLE sites (
 CREATE TABLE pages (
 	page_id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
 	site_id INTEGER NOT NULL,
-	url TEXT,
+	normalized_url TEXT,
+	original_url TEXT,
 	title TEXT,
 	content TEXT,
     content_hash TEXT,
@@ -19,6 +20,6 @@ CREATE TABLE pages (
 	tags TEXT,
 	workspaces TEXT, 
 	last_update DATETIME,
-	UNIQUE(url)
+	UNIQUE(normalized_url)
 	CONSTRAINT pages_sites_FK FOREIGN KEY (site_id) REFERENCES sites(site_id)
 );
