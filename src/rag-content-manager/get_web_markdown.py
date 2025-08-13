@@ -27,10 +27,10 @@ def make_links_absolute(markdown_content, base_url):
 
 
 
-def scrape_to_markdown(url, parent_selector, content_selector, base_url, tags=[], category="mslearn"):
+def scrape_to_markdown(url, parent_selector, content_selector, base_url, tags=[], job="mslearn"):
     """
-    Navigates to a URL, finds a parent container, then looks for a non-empty
-    child element to extract its content, convert it to markdown, and save it.
+    Navigates to a URL, finds a parent container, then looks for all child elements
+    matching content_selector, concatenates their HTML, converts it to markdown.
     """
     try:
         with sync_playwright() as p:
@@ -43,52 +43,53 @@ def scrape_to_markdown(url, parent_selector, content_selector, base_url, tags=[]
             if not parent_element:
                 print(f"Parent selector '{parent_selector}' not found.")
                 browser.close()
-                return
+                return None
 
-            html_content = None
+            # List to hold HTML content from all relevant divs
+            all_html_parts = []
+            
             # Find all child elements that match the content_selector
             content_divs = parent_element.locator(content_selector).all()
 
-            # Loop through the found elements to find the one with actual content
+            # Loop through the found elements and collect their HTML content
             for div in content_divs:
-                if div.inner_text().strip():
-                    html_content = div.inner_html()
-                    break # Stop looping once we find the correct content
-
-            if not html_content:
-                print(f"No non-empty child content found. Falling back to parent selector '{parent_selector}'.")
+                if div.inner_text().strip(): # Only include if it has actual text content
+                    all_html_parts.append(div.inner_html())
+            
+            # If no specific content divs found or they were all empty, fall back to parent's html
+            if not all_html_parts:
+                print(f"No non-empty child content found with '{content_selector}'. Falling back to parent selector '{parent_selector}'.")
                 html_content = parent_element.inner_html()
+            else:
+                # Concatenate all collected HTML parts
+                html_content = "".join(all_html_parts)
 
             if not html_content:
-                print("Could not find any content.")
+                print("Could not find any content to scrape.")
                 browser.close()
-                return
+                return None
 
             h = html2text.HTML2Text()
             h.body_width = 0
-            markdown_content = make_links_absolute(h.handle(html_content),base_url)
+            # Ensure links within the combined HTML are made absolute
+            markdown_content = make_links_absolute(h.handle(html_content), base_url)
+
             metadata = f"""
                 ---
                 title: {title}
                 source_url: {url}
                 tags: {tags}
-                category: {category}
+                crawler_job: {job}
                 ---
             """
+            # Use textwrap.dedent for clean multi-line YAML metadata
             markdown_content = f"{textwrap.dedent(metadata)}\n\n{markdown_content}"
-
-            # (The code for making links absolute goes here, unchanged)
-            #filename = url.strip('https://').replace('/','_').replace('?','').replace('=','') + '.md'
-            #file_path = os.path.join(output_base_path, filename)
-            #with open(file_path, 'w', encoding='utf-8') as f:
-            #    f.write(f'# Content from: {url}\n\n')
-            #    f.write(markdown_content)
-            #print(f"Content saved to {file_path}")
 
             browser.close()
             return markdown_content
     except Exception as e:
-        print(f"An error occurred: {e}")
+        print(f"An error occurred during scraping {url}: {e}")
+        return None
 
 # --- Quick Test ---
 # Make sure to create a 'cache_output' folder in your project directory

@@ -1,5 +1,6 @@
 import asyncio
 import json
+import math
 import sqlite3
 import textwrap
 from db import DatabaseManager
@@ -146,9 +147,8 @@ async def crawl_site(db: DatabaseManager, job: dict, max_pages: int = None, dbup
         print(f"      MAXURLS of {max_pages} detected!")
 
     try:
-        # get the current site config that we should use for this base url
-        api_url = urlparse(job['url'])
-        db.set_site_config(api_url.netloc)
+        # get the current site config that we should use for this url
+        db.set_site_config(job['url'])
     except Exception as e:
         print(f"Error setting Site config: {e}")
 
@@ -214,14 +214,71 @@ async def crawler_mode(args: argparse.ArgumentParser, db: DatabaseManager) -> No
         print(f"      - committing all changes in the DB")
         db.commit()
 
-def download(db):
+def download_page(db, page):
+    """
+    retrieves the core content as markdown from the page and updates the appropriate pages table row
+    """
+    
+    db.set_site_config(page['normalized_url'])
+    
+    try:      
+        markdown = scrape_to_markdown(
+            page['original_url'],
+            db.site_parent_element,
+            db.site_child_element,
+            db.site_base_url,
+            page['tags'],
+            page['job']
+        )
+
+        db.update_page(
+            page_id=page['page_id'],
+            content=markdown,
+            status="scraped"
+        )
+    except Exception as e:
+        print(f"Error Encountered: {e}")
+
+def download(db, jobs):
     """
     calls get_web_markdown for all pages in 'new' status and updates the database
     """
+    # get all new pages
+    if len(jobs) > 0:
+        for job in jobs:
+            for page in db.get_pages(status="new", job=job):
+                download_page(db, page)
+    else:
+        rowcount = db.get_pages_count(status="new")
+        count = 0
+        for page in db.get_pages(status="new"):
+            count += 1
+            print(f"{int(math.ceil(count/rowcount*100))}% Retrieving markdown for page: {page['normalized_url']}")
+            download_page(db, page)
 
-    for page in db.get_pages():
-        print(page['normalized_url'])
-
+def console_print(args, db):
+    """
+    calls get_web_markdown for all pages in 'new' status and updates the database
+    """
+    i=0
+    if args.print != "*":
+        count_rows = db.get_pages_count(job=args.print)
+        pages = db.get_pages(job=args.print)
+        print(f"Job {args.print} has a total of {count_rows} pages")
+    else:
+        count_rows = db.get_pages_count()
+        pages = db.get_pages()
+        print(f"A total of {count_rows} in pages table")
+    
+    if args.maxurls is not None:
+        print(f"showing the first {args.maxurls} pages")
+    
+    if isinstance(pages, sqlite3.Cursor):
+        for page in pages:
+            i += 1
+            print(f"{i}: {page['normalized_url']}")
+            if args.maxurls is not None and args.maxurls > 0 and i >= args.maxurls:
+                break
 
 if __name__ == "__main__":
     # get the passed command line parameters
@@ -244,7 +301,7 @@ if __name__ == "__main__":
     """    A comma-separated list of crawler job names to process.
     if ommitted, all defined jobs will be processed
 
-    NOTE: requires --crawler
+    NOTE: requires --crawler or --print
     
     Examples:
         --jobs cleanup,report,sync # no whitespaces
@@ -256,15 +313,18 @@ if __name__ == "__main__":
         "--maxurls",
         type=int,
         default=None,
-        help="maximum amount of pages for the crawler to return. requires --crawler"
+        help="maximum amount of pages for the crawler to return. requires --crawler or --print"
     )
 
     parser.add_argument(
         "-db", "--db_updates",
         action="store_false",
-        help="bypasses all database updates, and prints the updates to console"
+        help=
+    """    Bypasses all database updates, and prints the updates to console. 
+    By default, without this parameter, database updates will be performed.
+    If this parameter is detected on the command line, database updates are NOT performed
+    """
     )
-
 
     parser.add_argument(
         "-d", "--download",
@@ -272,6 +332,11 @@ if __name__ == "__main__":
         help="Enables content download mode. Must be run after crawler jobs have completed successfully"
     )
 
+    parser.add_argument(
+        "-p", "--print",
+        type=str,
+        help="prints urls belonging to a crawler job to the console. specify a job name or '*' for all jobs"
+    )
 
     args = parser.parse_args()
 
@@ -285,6 +350,9 @@ if __name__ == "__main__":
         asyncio.run(crawler_mode(args, db))
     
     if args.download:
-        download(db)
+        download(db, args.jobs)
+
+    if args.print:
+        console_print(args, db)
 
     db.close()
