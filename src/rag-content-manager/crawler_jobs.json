@@ -16,5 +16,23 @@
             "ignored_query_parameters": ["source", "tabs"],
             "remove_trailing_slash_from_paths": true
         }
+    },
+    {
+        "url": "https://learn.microsoft.com/en-us/dotnet/maui/?view=net-maui-9.0",
+        "globs": ["https://learn.microsoft.com/en-us/dotnet/maui/**"],
+        "concurrency": 40,
+        "job": "mslearn-maui-docs",
+        "workspaces": "selos-main, selos-development, selos-experiments",
+        "tags": [
+            "C#",
+            "MAUI",
+            "mslearn",
+            "docs"
+        ],
+        "url_normalization_rules": {
+            "sort_query_params": true,
+            "ignored_query_parameters": ["source", "tabs"],
+            "remove_trailing_slash_from_paths": true
+        }
     }
 ]
