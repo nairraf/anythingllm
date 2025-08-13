@@ -18,102 +18,11 @@ DB_File = r'..\..\db\sites.db'
 # Define the path to the json job links configuration file
 JOBS_FILE = './crawler_jobs.json'
 
+# -----------------------------------------------------------
+# region functions
+# -----------------------------------------------------------
 
-
-# # db.insert_site(
-# #     "https://learn.microsoft.com",
-# #     'div[data-main-column]',
-# #     'div.content',
-# #     "Microsoft Learn"
-# # )
-# #
-# #db.commit()
-
-
-# db.set_site_config('learn.microsoft.com')
-
-
-
-# # print (f"scraping completed, updating database")
-# # db.insert_page(
-# #     url=url,
-# #     content=markdown,
-# #     status="test"
-# # )
-# #db.commit()
-
-
-
-
-# ### two workflows needed:
-# ### 1: crawl through a URL structure and retrieve all appropriate URL's
-# #      - add URL's to the pages table with a status of "new", with appropriate title, category, tags and workspaces
-# #
-# ### 2: another loop that simply looks for all 'new' pages:
-# #      - extracts the relevant HTML for that URL and converts to markdown
-# #      - stores the markdown in the pages row for that URL
-# #      - uploads the document to anythingllm in the folder for it's category, and embeds it in the workspaces
-# #      - marks that page as "complete" in the pages table
-# ### workflow 1
-
-
-# quit()
-
-
-# ### workflow 2
-# new_pages = db.get_pages()
-# for page in new_pages:
-#     print(f"""
-#         Updating the following page to complete:
-        
-#         page_id: {page['page_id']}
-#         url: {page['url']}
-#         status: {page['status']}
-#     """)
-#     api_url = urlparse(page['url'])
-#     basename = api_url.netloc
-    
-#     print (f"scraping '{page['url']}'")
-#     markdown = scrape_to_markdown(
-#         page['url'], 
-#         db.site_parent_element, 
-#         db.site_child_element, 
-#         db.site_base_url,
-#         page['category'],
-#         page['tags']
-#     )
-
-#     db.update_page(
-#         page_id=page['page_id'],
-#         content=markdown,
-#     )
-    
-#     try:
-#         anythingllm_api.upload_to_anythingllm(
-#             workspace_slug=page['workspaces'],
-#             content=page['content'],
-#             anythingllm_folder=f"{page['category']}",
-#             anythingllm_filename=f"{page['category']}-{page['title']}"
-#         )
-#         db.update_page_status(page['page_id'])
-#     except:
-#         print("that failed")
-
-
-
-# # anythingllm_api.upload_to_anythingllm(
-# #     workspace_slug=anythingllm_workspace,
-# #     file=filename,
-# #     file_bytes=file_bytes,
-# #     tags=[tag, "source:local"],
-# #     anythingllm_folder=f"git-{anythingllm_workspace}",
-# #     anythingllm_filename=llm_filename
-# # )
-
-
-
-# db.close()
-#def print_help():
+# region GetJSON
 def get_links_json() -> list[dict]:
     """
     retrieves the list of jobs from the crawler_jobs.json file
@@ -134,7 +43,9 @@ def get_links_json() -> list[dict]:
     except Exception as e:
         print(f"Error reading config file: {e}")
         exit(1)
+# endregion GetJSON
 
+# region Crawler
 async def crawl_site(db: DatabaseManager, job: dict, max_pages: int = None, dbupdates: bool = True) -> None:
     """
     Performs a crawl for a specific site job
@@ -213,7 +124,9 @@ async def crawler_mode(args: argparse.ArgumentParser, db: DatabaseManager) -> No
     if args.db_updates:
         print(f"      - committing all changes in the DB")
         db.commit()
+# endregion Crawler
 
+# region Download
 def download_page(db, page):
     """
     retrieves the core content as markdown from the page and updates the appropriate pages table row
@@ -256,6 +169,10 @@ def download(db, jobs):
             print(f"{int(math.ceil(count/rowcount*100))}% Retrieving markdown for page: {page['normalized_url']}")
             download_page(db, page)
 
+# endregion Download
+
+# region Console
+
 def console_print(args, db):
     """
     calls get_web_markdown for all pages in 'new' status and updates the database
@@ -279,8 +196,58 @@ def console_print(args, db):
             print(f"{i}: {page['normalized_url']}")
             if args.maxurls is not None and args.maxurls > 0 and i >= args.maxurls:
                 break
+# endregion Console
+
+# region Upload
+def upload_page(db: DatabaseManager, page: list):
+    """
+    Uploads scraped content to anythingllm workspaces
+    """
+    try:
+        anythingllm_api.upload_to_anythingllm(
+            workspace_slug=page['workspaces'],
+            content=page['content'],
+            anythingllm_folder=f"{page['job']}",
+            anythingllm_filename=f"{page['job']}-{page['title']}"
+        )
+
+        db.update_page_status(
+            page_id = page['page_id'],
+            status="uploaded"
+        )
+    except:
+        print("that failed")
+
+
+def upload(db, jobs):
+    """
+    Gets documents should be uploaded and calls upload_page to upload to anythingllm
+    """
+    # get all new pages
+    if len(jobs) > 0:
+        for job in jobs:
+            for page in db.get_pages(status="scraped", job=job):
+                upload_page(db, page)
+    else:
+        rowcount = db.get_pages_count(status="scraped")
+        count = 0
+        for page in db.get_pages(status="scraped"):
+            count += 1
+            print(f"{int(math.ceil(count/rowcount*100))}% uploading markdown for page: {page['normalized_url']}")
+            upload_page(db, page)
+# endgion Upload
+
+# endregion
+# -----------------------------------------------------------
+# endregion functions
+# -----------------------------------------------------------
 
 if __name__ == "__main__":
+    # -----------------------------------------------------------
+    # region Argparse Configuration
+    # This section defines all command-line arguments for the script.
+    # -----------------------------------------------------------
+
     # get the passed command line parameters
     parser = argparse.ArgumentParser(
         description="main rag data controller script to manage SQLite and AnythingLLM data.",
@@ -294,6 +261,22 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
+        "-d", "--download",
+        action="store_true",
+        help="Enables content download mode. Must be run after crawler jobs have completed successfully"
+    )
+
+    parser.add_argument(
+        "-db", "--db_updates",
+        action="store_false",
+        help=
+    """    Bypasses all database updates in crawler mode only, and prints the updates to console. 
+    By default, without this parameter, database updates will be performed.
+    If this parameter is detected on the command line, database updates are NOT performed
+    """
+    )
+
+    parser.add_argument(
         "-j", "--jobs",
         type=lambda s: [item.strip() for item in s.split(',')], # Custom type to split by comma and strip whitespace
         default=[], # Default to an empty list if no jobs are provided
@@ -301,7 +284,7 @@ if __name__ == "__main__":
     """    A comma-separated list of crawler job names to process.
     if ommitted, all defined jobs will be processed
 
-    NOTE: requires --crawler or --print
+    NOTE: requires --crawler, --print, --download, or --upload
     
     Examples:
         --jobs cleanup,report,sync # no whitespaces
@@ -317,40 +300,40 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
-        "-db", "--db_updates",
-        action="store_false",
-        help=
-    """    Bypasses all database updates, and prints the updates to console. 
-    By default, without this parameter, database updates will be performed.
-    If this parameter is detected on the command line, database updates are NOT performed
-    """
-    )
-
-    parser.add_argument(
-        "-d", "--download",
-        action="store_true",
-        help="Enables content download mode. Must be run after crawler jobs have completed successfully"
-    )
-
-    parser.add_argument(
         "-p", "--print",
         type=str,
         help="prints urls belonging to a crawler job to the console. specify a job name or '*' for all jobs"
     )
 
+    parser.add_argument(
+        "-u", "--upload",
+        action="store_true",
+        help=
+        """    Upload mode. Uploads all pages (or pages of a specific job) that have been sraped to anythingllm workspaces
+
+        """
+    )
+
     args = parser.parse_args()
+
+    # endregion
+    # -----------------------------------------------------------
+    # End Argparse Configuration
+    # -----------------------------------------------------------
 
     db = DatabaseManager(DB_File)
 
-    if args.db_updates == False:
-        print("\n NO DATABASE UPDATES WILL BE PERFORMED - OUTPUT TO CONSOLE\n")
-
     # parse through the args
     if args.crawler:
+        if args.db_updates == False:
+            print("\n NO DATABASE UPDATES WILL BE PERFORMED - OUTPUT TO CONSOLE\n")
         asyncio.run(crawler_mode(args, db))
     
     if args.download:
         download(db, args.jobs)
+
+    if args.upload:
+        upload(db, args.jobs)
 
     if args.print:
         console_print(args, db)

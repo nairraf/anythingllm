@@ -253,7 +253,7 @@ class DatabaseManager:
             print(f"database error: {e}")
             return None
         
-    def update_page_status(self, page_id: int, status: str = "complete") -> None:
+    def update_page_status(self, page_id: int, status: str) -> None:
         """
         set the complete flag for a specific page_id
         uses a seperate cursor to not interfere with any other DB operations
