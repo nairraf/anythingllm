@@ -12,6 +12,7 @@ CREATE TABLE pages (
 	site_id INTEGER NOT NULL,
 	normalized_url TEXT,
 	original_url TEXT,
+	related_image_urls TEXT,
 	title TEXT,
 	content TEXT,
     content_hash TEXT,

@@ -75,7 +75,6 @@ async def crawl_site(db: DatabaseManager, job: dict, max_pages: int = None, dbup
 
         if dbupdates:
             print(f"      - inserting {len(pages_found)} url's in db for job: {job['job']}")
-
         try:
             # insert the pages
             for page in pages_found:
@@ -86,7 +85,8 @@ async def crawl_site(db: DatabaseManager, job: dict, max_pages: int = None, dbup
                         title=page['title'],
                         job=job['job'],
                         tags=job['tags'],
-                        workspaces=job['workspaces']
+                        workspaces=job['workspaces'],
+                        image_urls=page['image_urls']
                     )
                 else:
                     print(page['normalized_url'])

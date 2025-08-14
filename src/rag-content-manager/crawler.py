@@ -1,10 +1,13 @@
 import asyncio
+import fnmatch
 import json
 import os
 import re
-import time # Import the time module
+import time
 from urllib.parse import urljoin, urlparse, parse_qs, urlunparse, urlencode
 from playwright.async_api import async_playwright, Playwright, Page
+# Re-import Playwright-specific error types to resolve NameError
+from playwright._impl._errors import TargetClosedError, Error as PlaywrightError 
 
 def _normalize_url(
     url: str,
@@ -60,183 +63,238 @@ def _normalize_url(
 
     return urlunparse(parsed)
 
+def _get_version_rank_and_numeric(
+    url_str: str, 
+    version_param_name: str, 
+    preferred_list: list[str]
+) -> tuple[float, float]:
+    """
+    Extracts version information from a URL for comparison.
+    Returns a tuple (preference_rank, -numeric_version) where:
+    - preference_rank: Lower number means higher preference (0 = most preferred).
+                       float('inf') if not found in preferred_list.
+    - -numeric_version: Negative numeric version for tie-breaking:
+                        higher numeric version results in a smaller (more preferred) value
+                        when comparing tuples.
+    """
+    parsed_url = urlparse(url_str)
+    query_params = parse_qs(parsed_url.query)
+    version_str_list = query_params.get(version_param_name, [])
+    
+    full_version_id = version_str_list[0] if version_str_list else None
+    
+    # 1. Determine preference rank based on explicit list
+    rank = float('inf') # Default: very low preference if not in explicit list
+    if full_version_id and preferred_list: # Ensure preferred_list is not empty
+        try:
+            rank = preferred_list.index(full_version_id) # Lower index = higher preference (e.g., 0 is best)
+        except ValueError:
+            # Not in preferred list, so rank remains float('inf')
+            pass 
+
+    # 2. Extract numeric version for tie-breaking within rank or for unlisted versions
+    numeric_version = 0.0 # Default numeric version
+    if full_version_id:
+        # Regex to find numbers like "9.0", "10.0", "6.0" from strings like "net-maui-9.0"
+        match = re.search(r'(\d+(\.\d+)?)', version_str_list[0]) # Use version_str_list[0] directly
+        if match:
+            try:
+                numeric_version = float(match.group(1))
+            except ValueError:
+                pass # numeric_version remains 0.0 if float conversion fails
+
+    # Return (rank, -numeric_version) for tuple comparison
+    # Lower rank is better. For same rank, smaller -numeric_version (i.e., larger numeric_version) is better.
+    return (rank, -numeric_version)
+
+
 async def run_crawler(
     playwright: Playwright, 
     start_url: str, 
     globs: list[str], 
     max_concurrency: int = 20,
     url_normalization_rules: dict = None,
-    max_urls_to_find: int = None # New parameter for the limit
+    max_urls_to_find: int = None
 ) -> list[dict]:
     """
     Crawls a given start URL, enqueues links based on globs, and returns found URLs with titles.
-    Mimics the PlaywrightCrawler behavior using asyncio and Playwright.
-
-    Args:
-        playwright: The Playwright instance.
-        start_url: The URL to start crawling from.
-        globs: A list of glob patterns for URL filtering.
-        max_concurrency: The maximum number of concurrent browser tabs/workers.
-        url_normalization_rules: A dictionary of rules for URL normalization.
-                                 Keys: 'strip_fragments', 'sort_query_params',
-                                 'ignored_query_parameters', 'remove_trailing_slash_from_paths'.
-        max_urls_to_find: An optional integer. If set, the crawler will stop
-                          after finding this many unique URLs.
+    Prioritizes newer versions of pages based on a 'view' query parameter if specified
+    via `url_normalization_rules.version_preference_order`.
+    Also collects image URLs found on each page.
     """
     # Set default normalization rules if not provided
     rules = {
         'strip_fragments': True,
-        'sort_query_params': True, # Default to sorting for better consistency
+        'sort_query_params': True,
         'ignored_query_parameters': [],
-        'remove_trailing_slash_from_paths': False # Default to False, can be dangerous
+        'remove_trailing_slash_from_paths': False,
+        'version_preference_order': [] # Default to empty list for preference handling
     }
     if url_normalization_rules:
         rules.update(url_normalization_rules)
 
-    # Record the start time of the crawl
     start_time = time.time()
-
-    # Dictionary to store unique pages and their data, keyed by the normalized URL
-    # Stores {normalized_url: {'normalized_url': normalized_url, 'original_url': original_url, 'title': title}}
+    # found_pages_data now stores normalized_url as key, and a dict value containing:
+    # 'normalized_url', 'original_url', 'title', and 'image_urls'
     found_pages_data = {} 
-    
-    # Asynchronous queue to manage URLs waiting to be crawled
     to_crawl_queue = asyncio.Queue()
     
-    # Normalize the start URL before adding to queue and visited set
-    normalized_start_url = _normalize_url(start_url, **rules)
-    await to_crawl_queue.put(start_url) # Always put the original URL into the queue to navigate to
-    
-    # Set to keep track of *normalized* URLs that have been added to the queue or already processed.
+    # Create a copy of rules to pass to _normalize_url, excluding version_preference_order
+    normalize_url_params = {k: v for k, v in rules.items() if k != 'version_preference_order'}
+
+    # Initial setup: Put the start URL into the queue and mark its normalized version as visited.
+    normalized_start_url = _normalize_url(start_url, **normalize_url_params)
+    await to_crawl_queue.put(start_url)
     visited_or_queued_urls = {normalized_start_url}
+
+    # Define common image extensions for filtering and collection
+    IMAGE_EXTENSIONS = ('.png', '.jpg', '.jpeg', '.gif', '.bmp', '.svg', '.webp')
+
+    # Lock for protecting access to found_pages_data and visited_or_queued_urls during concurrent updates
+    # This is crucial for preventing race conditions with `found_pages_data` accuracy.
+    data_access_lock = asyncio.Lock()
 
     print(f"       - Starting crawl for: {start_url} with {max_concurrency} concurrent workers.")
     if max_urls_to_find is not None:
         print(f"       - Stopping after {max_urls_to_find} unique URLs are found.")
     print(f"       - Normalization rules: {rules}")
 
-    async def worker():
-        """
-        Worker function to process URLs from the queue using a Playwright browser instance.
-        Each worker maintains its own browser context and page.
-        """
-        browser = await playwright.chromium.launch()
-        context = await browser.new_context()
-        page = await context.new_page()
-
+    async def worker(worker_id: int):
+        browser = None
+        context = None
+        page = None
         try:
+            browser = await playwright.chromium.launch()
+            context = await browser.new_context()
+            page = await context.new_page()
+
             while True:
-                # Check if we've reached the limit
-                if max_urls_to_find is not None and len(found_pages_data) >= max_urls_to_find:
-                    # Signal that we're done by clearing the queue and breaking
-                    while not to_crawl_queue.empty():
-                        to_crawl_queue.get_nowait() # Consume items
-                        to_crawl_queue.task_done() # Mark as done
-                    break # Exit worker loop
-
-                try:
-                    # Get a URL from the queue without waiting if empty
-                    request_url = to_crawl_queue.get_nowait()
-                except asyncio.QueueEmpty:
-                    # If queue is empty, we might be done or waiting for other workers
-                    # We'll break here, and the main `to_crawl_queue.join()` will ensure all
-                    # active tasks complete before the crawl truly ends.
-                    break 
-
-                # Normalize the current request_url for deduplication logic *before* processing
-                normalized_request_url = _normalize_url(request_url, **rules)
-
-                # Check if this normalized URL has already been fully processed and stored
-                if normalized_request_url in found_pages_data:
-                    to_crawl_queue.task_done()
-                    continue # Skip if already processed this base URL
-
-                try:
-                    # Navigate to the URL
-                    await page.goto(request_url, wait_until="networkidle")
-                    
-                    # Extract the page title
-                    page_title = await page.title()
-                    
-                    # Check the limit again before adding, in case another worker just filled it
+                # Early exit if max_urls_to_find is reached
+                async with data_access_lock:
                     if max_urls_to_find is not None and len(found_pages_data) >= max_urls_to_find:
-                        to_crawl_queue.task_done()
-                        break # Exit worker if limit reached during page processing
+                        break
 
-                    # Store the *normalized* URL and its title, keyed by the normalized URL.
-                    # This ensures only one entry per logical page and the 'url' field is normalized.
-                    found_pages_data[normalized_request_url] = {
-                        'normalized_url': normalized_request_url, # Store the normalized URL here
-                        'original_url': request_url,              # Store the original URL here
-                        'title': page_title
-                    }
-                    
-                    #print(f"   Processing {request_url} - Title: {page_title}")
+                try:
+                    request_url = await asyncio.wait_for(to_crawl_queue.get(), timeout=0.5)
+                except asyncio.TimeoutError:
+                    break
 
-                    # Extract all 'href' attributes from anchor tags on the page
-                    hrefs = await page.evaluate('''
-                        Array.from(document.querySelectorAll('a[href]')).map(a => a.href)
-                    ''')
+                normalized_request_url = _normalize_url(request_url, **normalize_url_params)
+                should_process_and_store = True
 
-                    # Enqueue discovered links based on provided glob patterns
+                async with data_access_lock:
+                    if normalized_request_url in found_pages_data:
+                        stored_page_info = found_pages_data[normalized_request_url]
+                        current_url_comparison_value = _get_version_rank_and_numeric(
+                            request_url, 
+                            "view", 
+                            rules.get('version_preference_order', [])
+                        )
+                        stored_url_comparison_value = _get_version_rank_and_numeric(
+                            stored_page_info['original_url'], 
+                            "view", 
+                            rules.get('version_preference_order', [])
+                        )
+                        if current_url_comparison_value < stored_url_comparison_value:
+                            # Current is preferred, allow update
+                            should_process_and_store = True
+                        else:
+                            should_process_and_store = False  # Skip, stored is preferred
+
+                if not should_process_and_store:
+                    to_crawl_queue.task_done()
+                    continue
+
+                try:
+                    await page.goto(request_url, wait_until="networkidle")
+                    page_title = await page.title()
+                    # ... collect image URLs, deduplicate ...
+                    img_srcs = await page.evaluate('Array.from(document.querySelectorAll("img[src]")).map(img => img.src)')
+                    href_img_links = await page.evaluate('Array.from(document.querySelectorAll("a[href]")).map(a => a.href)')
+                    media_links = set(img_srcs) | set(href_img_links)
+                    page_image_urls = []
+                    for link in media_links:
+                        absolute_link = urljoin(request_url, link)
+                        if urlparse(absolute_link).path.lower().endswith(IMAGE_EXTENSIONS):
+                            page_image_urls.append(absolute_link)
+                    page_image_urls = list(set(page_image_urls)) # Deduplicate
+
+                    async with data_access_lock:
+                        # ... double-check max_urls_to_find ...
+                        found_pages_data[normalized_request_url] = {
+                            'normalized_url': normalized_request_url,
+                            'original_url': request_url,
+                            'title': page_title,
+                            'image_urls': page_image_urls
+                        }
+
+                    # Discover new links and enqueue
+                    hrefs = await page.evaluate('Array.from(document.querySelectorAll("a[href]")).map(a => a.href)')
                     for href in hrefs:
-                        full_url = urljoin(request_url, href) # Resolve relative URLs to absolute ones
-                        
-                        # Normalize the link found for deduplication check *before* enqueuing
-                        normalized_link_for_deduplication = _normalize_url(full_url, **rules)
-
-                        matched = False
-                        # Check if the original full URL matches any of the glob patterns
-                        for glob_pattern in globs:
-                            # Convert glob pattern to a regex pattern for flexible matching
-                            regex_pattern = re.compile(glob_pattern.replace('*', '.*').replace('?', '.?'))
-                            if regex_pattern.match(full_url): # Match glob against original full_url
-                                matched = True
-                                break
-                        
-                        # If matched and the normalized URL has not been visited/queued, add to queue
-                        if matched and normalized_link_for_deduplication not in visited_or_queued_urls:
-                            await to_crawl_queue.put(full_url) # Put the original full URL into the queue
-                            visited_or_queued_urls.add(normalized_link_for_deduplication) # Add normalized URL to visited set
+                        full_url = urljoin(request_url, href)
+                        if urlparse(full_url).path.lower().endswith(IMAGE_EXTENSIONS):
+                            continue
+                        normalized_link = _normalize_url(full_url, **normalize_url_params)
+                        # Use fnmatch or robust regex for matching
+                        matched = any(fnmatch.fnmatch(full_url, glob) for glob in globs)
+                        async with data_access_lock:
+                            if matched and normalized_link not in visited_or_queued_urls:
+                                await to_crawl_queue.put(full_url)
+                                visited_or_queued_urls.add(normalized_link)
 
                 except Exception as e:
-                    print(f"       - Error processing {request_url}: {e}")
+                    print(f"Worker {worker_id}: error processing {request_url}: {e}")
                 finally:
-                    # Mark the task as done in the queue, regardless of success or failure
                     to_crawl_queue.task_done()
         finally:
-            # Ensure the browser context and browser are closed after the worker finishes
-            await context.close()
-            await browser.close()
+            if page: await page.close()
+            if context: await context.close()
+            if browser: await browser.close()
+
 
 
     # Create and start the worker tasks
-    workers = [asyncio.create_task(worker()) for _ in range(max_concurrency)]
+    workers = [asyncio.create_task(worker(i)) for i in range(max_concurrency)]
     
-    # Wait until all URLs in the queue have been processed by the workers
-    # Or, until the max_urls_to_find limit is hit and the queue is drained by workers
+    # Wait until all URLs in the queue have been processed by the workers.
+    # This will naturally stop when the queue is empty AND all tasks put into it are marked done.
     await to_crawl_queue.join() 
     
-    # Cancel any worker tasks that are still running (e.g., waiting for new items)
+    # Cancel any worker tasks that are still running (e.g., waiting for new items).
+    # This is a cleanup step after the queue has been processed.
     for w in workers:
-        w.cancel()
+        if not w.done():
+            w.cancel()
     
     # Gather all worker tasks to ensure they finish their cleanup (e.g., browser closing)
-    await asyncio.gather(*workers, return_exceptions=True)
+    # and to retrieve any exceptions.
+    results = await asyncio.gather(*workers, return_exceptions=True)
 
-    # Record the end time and calculate duration
+    # Iterate through results to "retrieve" any exceptions and prevent "Future exception was never retrieved" warnings.
+    for result in results:
+        if isinstance(result, (TargetClosedError, PlaywrightError, asyncio.CancelledError)):
+            # These are expected errors/cancellations during controlled shutdown.
+            pass # Suppress output as requested for development
+        elif isinstance(result, Exception):
+            # Log any other truly unexpected exceptions
+            print(f"       - Unexpected exception in gathered task: {result}")
+
     end_time = time.time()
     total_crawl_duration = end_time - start_time
     minutes = int(total_crawl_duration // 60)
     seconds = total_crawl_duration % 60
 
     print(f"       - Crawl finished for {start_url}. Found {len(found_pages_data)} unique base links.")
-    print(f"       - Total crawl time: {minutes} minutes {seconds:.2f} seconds.") # Print the total crawl time
+    print(f"       - Total crawl time: {minutes} minutes {seconds:.2f} seconds.") 
     
-    # Return the collected data as a list of dictionaries
-    # Sort the items by URL for consistent output order (using normalized_url for sorting)
+    # Return the collected data as a list of dictionaries.
+    # Apply max_urls_to_find limit to the *returned* pages if set.
     sorted_pages = sorted(found_pages_data.values(), key=lambda page: page['normalized_url'])
+    if max_urls_to_find is not None:
+        sorted_pages = sorted_pages[:max_urls_to_find]
+
     return sorted_pages
+
 
 # async def main():
 #     """

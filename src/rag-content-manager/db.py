@@ -111,7 +111,8 @@ class DatabaseManager:
             status: str = "new",
             job: str = "", 
             tags: list = [],
-            workspaces: str = "") -> None:
+            workspaces: str = "",
+            image_urls: list = []) -> None:
         """
         Inserts a page into the pages table
         """
@@ -132,19 +133,21 @@ class DatabaseManager:
                 job,
                 json.dumps(tags),
                 workspaces,
-                sqlite_datetime_str
+                sqlite_datetime_str,
+                json.dumps(image_urls)
             )
             self.cursor.execute(
                 """
                     INSERT INTO pages 
-                    (site_id, normalized_url, original_url, title, status, job, tags, workspaces, last_update) 
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    (site_id, normalized_url, original_url, title, status, job, tags, workspaces, last_update, image_urls) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ON CONFLICT (normalized_url) DO UPDATE SET
                         title = excluded.title,
                         job = excluded.job,
                         tags = excluded.tags,
                         workspaces = excluded.workspaces,
-                        last_update = excluded.last_update
+                        last_update = excluded.last_update,
+                        image_urls = excluded.image_urls
                 """, parameters
             )
         except sqlite3.Error as e:
