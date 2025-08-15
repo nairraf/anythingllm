@@ -82,25 +82,30 @@ def get_anythingllm_files(foldername):
     else:
         return {}
 
-def delete_anythingllm_files(workspacename, foldername, filename, file_json_name):
+def delete_anythingllm_files(workspaces, foldername, file_json_name):
     success = False
-    url = url = f"https://aura.farrworks.com/api/v1/workspace/{workspacename}/update-embeddings"
-    headers = {
-        "Authorization": f"Bearer {ANYTHINGLLM_API_KEY}",
-        "Accept": "application/json"
-    }
+    # the file could be embeded in many workspaces, we clear all of them
+    # workspaces is defined as comma seperated in the json jobs lists
+    workspace_list = workspaces.split(",")
 
-    data = {
-        "deletes": [
-            f"{foldername}/{file_json_name}"
-        ]
-    }
+    for workspacename in workspace_list:
+        url = url = f"https://aura.farrworks.com/api/v1/workspace/{workspacename}/update-embeddings"
+        headers = {
+            "Authorization": f"Bearer {ANYTHINGLLM_API_KEY}",
+            "Accept": "application/json"
+        }
 
-    logging.info(f"unlink {foldername}/{file_json_name} for workspace {workspacename}")
-    response = requests.post(url, headers=headers, json=data)
-    if response.status_code == 200:
-        success = True
+        data = {
+            "deletes": [
+                f"{foldername}/{file_json_name}"
+            ]
+        }
 
+        #print(f"unlink {foldername}/{file_json_name} for workspace {workspacename}")
+        response = requests.post(url, headers=headers, json=data)
+        if response.status_code == 200:
+            #print(response)
+            success = True
 
     return success
 
@@ -177,7 +182,7 @@ def move_anythingllm_files(from_json,to_json):
         ]
     }
 
-    logging.info(f"moving from: {from_json} to: {to_json}")
+    print(f"moving from: {from_json} to: {to_json}")
     response = requests.post(url, headers=headers, json=data)
     logging.info(f"move_anythingllm_files response code {response.status_code}")
     if response.status_code == 200:

@@ -10,6 +10,9 @@ import anythingllm_api
 JOBS_FILE = './upload_folder_jobs.json'
 
 def find_files(base_dir, glob_patterns):
+    """
+    returns all files for a given base_dir recursively matching the glob patterns
+    """
     for pattern in glob_patterns:
         full_pattern = os.path.join(base_dir, pattern)
         for filename in glob.glob(full_pattern, recursive=True):
@@ -90,8 +93,6 @@ def runjob(job):
             anythingllm_api.move_anythingllm_files(filefrom, fileto)
         else:
             print(f"Document {anythingllm_filename} Doesn't Exist, uploading to workspace: {job['anythingllm_folder']}")
-
-        
 
         ## upload the new file
         with open(file, "rb") as f:

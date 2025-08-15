@@ -221,7 +221,7 @@ class DatabaseManager:
         except sqlite3.Error as e:
             print(f"database error: {e}")
             return None
-        
+
     def get_pages(self, status: str = None, job: str = None) -> sqlite3.Cursor:
         """
         returns an iterable cursor object that can loop through all rows. this saves loading the whole dataset in memory
@@ -245,7 +245,7 @@ class DatabaseManager:
 
             self.cursor.execute(
                 f"""
-                    SELECT page_id, normalized_url, original_url, title, content, status, job, tags, workspaces, last_update
+                    SELECT page_id, normalized_url, original_url, title, content, content_hash, uploaded_hash, status, job, tags, workspaces, last_update
                     FROM pages
                     {sql_where}
                     ORDER BY normalized_url
@@ -255,8 +255,26 @@ class DatabaseManager:
         except sqlite3.Error as e:
             print(f"database error: {e}")
             return None
+   
+    def get_jobs(self) -> list[str]:
+        """
+        returns a basic python list for all unique jobs names present in the database
+        """
+
+        parameters = []
+
+        try:
+            self.cursor.execute(
+                f"""
+                   select DISTINCT(job) from pages;
+                """, parameters
+            )
+            return [row[0] for row in self.cursor.fetchall()]
+        except sqlite3.Error as e:
+            print(f"database error: {e}")
+            return None
         
-    def update_page_status(self, page_id: int, status: str) -> None:
+    def update_uploaded_page(self, page_id: int, status: str, uploaded_hash: str) -> None:
         """
         set the complete flag for a specific page_id
         uses a seperate cursor to not interfere with any other DB operations
@@ -265,12 +283,13 @@ class DatabaseManager:
             cursor = self.conn.cursor()
             parameters = (
                 status,
+                uploaded_hash,
                 page_id,
             )
             cursor.execute(
                 """
                     UPDATE pages
-                    SET status=?
+                    SET status=?, uploaded_hash=?
                     WHERE page_id=?;
                 """, parameters
             )

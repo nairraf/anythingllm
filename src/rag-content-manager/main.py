@@ -1,6 +1,7 @@
 import asyncio
 import json
 import math
+from pathlib import Path
 import sqlite3
 import textwrap
 from db import DatabaseManager
@@ -13,10 +14,13 @@ import argparse
 from playwright.async_api import async_playwright, Playwright, Page
 
 # where the SQLite database resides
-DB_File = r'..\..\db\sites.db'
+DB_File = Path('../../db/sites.db')
 
 # Define the path to the json job links configuration file
 JOBS_FILE = './crawler_jobs.json'
+
+#anythingllm junk/garbage folder name
+junk_folder_name = "JUNK"
 
 # -----------------------------------------------------------
 # region functions
@@ -162,18 +166,18 @@ def download(db, jobs):
     # get all new pages
     if len(jobs) > 0:
         for job in jobs:
-            rowcount = db.get_pages_count(status="new", job=job)
+            total_pages = db.get_pages_count(status="new", job=job)
             count = 0
             for page in db.get_pages(status="new", job=job):
                 count += 1
-                print(f"{int(math.ceil(count/rowcount*100))}% Retrieving markdown for page: {page['normalized_url']}")
+                print(f"{count/total_pages*100:.1f}% Retrieving markdown for page: {page['normalized_url']}")
                 download_page(db, page)
     else:
-        rowcount = db.get_pages_count(status="new")
+        total_pages = db.get_pages_count(status="new")
         count = 0
         for page in db.get_pages(status="new"):
             count += 1
-            print(f"{int(math.ceil(count/rowcount*100))}% Retrieving markdown for page: {page['normalized_url']}")
+            print(f"{count/total_pages*100:.1f}% Retrieving markdown for page: {page['normalized_url']}")
             download_page(db, page)
 
 # endregion Download
@@ -206,42 +210,99 @@ def console_print(args, db):
 # endregion Console
 
 # region Upload
-def upload_page(db: DatabaseManager, page: list):
+def upload_page(db: DatabaseManager, page: list, anythingllm_docs: list):
     """
     Uploads scraped content to anythingllm workspaces
     """
     try:
-        anythingllm_api.upload_to_anythingllm(
-            workspace_slug=page['workspaces'],
-            content=page['content'],
-            anythingllm_folder=f"{page['job']}",
-            anythingllm_filename=f"{page['job']}-{page['title']}"
-        )
+        if page["content_hash"] != page["uploaded_hash"]:
+            print(f"    - page content change detected, re-uploading")
+            
+            anythingllm_filename = f"{page['job']}-{page['title']}"
+            print(f"current file name: {anythingllm_filename}")
+            # move existing anythingllm doc to junk
 
-        db.update_page_status(
+            curdocs = []
+            if anythingllm_docs:
+                for doc in anythingllm_docs:
+                    if doc.get("title") == anythingllm_filename:
+                        #print(f"match: {doc.get("name")}")
+                        curdocs.append(doc)
+            
+            if len(curdocs) > 0:
+                print(f"    - Document exists, cleaning, deleting and re-uploading")
+
+                for curdoc in curdocs:
+                    # unlink the files from workspaces
+                    delete_status = anythingllm_api.delete_anythingllm_files(
+                        workspaces=page['workspaces'], 
+                        foldername = page['job'], 
+                        file_json_name = curdoc.get("name")
+                    )
+
+                    # move anythingllm document to junk folder
+                    filefrom = f"{page['job']}/{curdoc.get('name')}"
+                    fileto = filefrom.replace(f"{page['job']}/",f"{junk_folder_name}/")
+                    move_status = anythingllm_api.move_anythingllm_files(filefrom, fileto)
+
+            return
+            # upload new version for embedding
+            anythingllm_api.upload_to_anythingllm(
+                workspace_slug=page['workspaces'],
+                content=page['content'],
+                anythingllm_folder=page['job'],
+                anythingllm_filename=f"{page['job']}-{page['title']}"
+            )
+
+        # since the page was re-scraped, we always reset to uploaded status, even if the two hashes match (good version already uploaded)
+        db.update_uploaded_page(
             page_id = page['page_id'],
-            status="uploaded"
+            status="uploaded",
+            uploaded_hash=page["content_hash"]
         )
-    except:
-        print("that failed")
+    except Exception as e:
+        print(f"Upload failed for page: {page['page_id']} with {e}")
 
 
 def upload(db, jobs):
     """
     Gets documents should be uploaded and calls upload_page to upload to anythingllm
     """
+
+    print("\n Upload Mode \n")
+
     # get all new pages
-    if len(jobs) > 0:
-        for job in jobs:
-            for page in db.get_pages(status="scraped", job=job):
-                upload_page(db, page)
-    else:
-        rowcount = db.get_pages_count(status="scraped")
+    if len(jobs) == 0:
+        # no jobs passed, get all of them
+        jobs = db.get_jobs()
+
+    # make sure our junk folder exists
+    # we move old pages to junk, and delete the junk folder after to kill the embeddings for the old document
+    anythingllm_api.create_anythingllm_folder(junk_folder_name)
+    
+    for job in jobs:
+        print(f"Processing pages for job: {job}")
+
+        # get a list of all documents that exist in the anythingllm document folder
+        response = anythingllm_api.get_anythingllm_files(job)
+        anythingllm_docs = {} # initialize a blank list
+
+        if "documents" in response:
+            anythingllm_docs = response.get("documents", [])
+
+        if len(anythingllm_docs) == 0:
+            print(f"warning: 0 length list of documents from anythingllm!!")
+
+        total_pages = db.get_pages_count(status="scraped", job=job)
         count = 0
-        for page in db.get_pages(status="scraped"):
+        for page in db.get_pages(status="scraped", job=job):
             count += 1
-            print(f"{int(math.ceil(count/rowcount*100))}% uploading markdown for page: {page['normalized_url']}")
-            upload_page(db, page)
+            print(f" {count/total_pages*100:.1f}% - uploading page: {page["normalized_url"]}")
+            upload_page(db, page, anythingllm_docs)
+    
+    # clear out the old items
+    anythingllm_api.delete_anythingllm_folder(junk_folder_name)
+
 # endgion Upload
 
 # endregion

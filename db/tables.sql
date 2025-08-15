@@ -16,6 +16,7 @@ CREATE TABLE pages (
 	title TEXT,
 	content TEXT,
     content_hash TEXT,
+	uploaded_hash TEXT,
 	status TEXT,
 	job TEXT,
 	tags TEXT,
