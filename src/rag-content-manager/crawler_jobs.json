@@ -22,7 +22,7 @@
     {
         "url": "https://learn.microsoft.com/en-us/dotnet/maui/?view=net-maui-9.0",
         "globs": ["https://learn.microsoft.com/en-us/dotnet/maui/**"],
-        "concurrency": 1,
+        "concurrency": 40,
         "job": "mslearn-maui-docs",
         "workspaces": "selos-main, selos-development, selos-experiments",
         "tags": [

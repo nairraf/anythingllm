@@ -169,83 +169,94 @@ async def run_crawler(
             page = await context.new_page()
 
             while True:
-                # Early exit if max_urls_to_find is reached
-                async with data_access_lock:
-                    if max_urls_to_find is not None and len(found_pages_data) >= max_urls_to_find:
-                        break
-
                 try:
                     request_url = await asyncio.wait_for(to_crawl_queue.get(), timeout=0.5)
                 except asyncio.TimeoutError:
                     break
 
-                normalized_request_url = _normalize_url(request_url, **normalize_url_params)
-                should_process_and_store = True
-
-                async with data_access_lock:
-                    if normalized_request_url in found_pages_data:
-                        stored_page_info = found_pages_data[normalized_request_url]
-                        current_url_comparison_value = _get_version_rank_and_numeric(
-                            request_url, 
-                            "view", 
-                            rules.get('version_preference_order', [])
-                        )
-                        stored_url_comparison_value = _get_version_rank_and_numeric(
-                            stored_page_info['original_url'], 
-                            "view", 
-                            rules.get('version_preference_order', [])
-                        )
-                        if current_url_comparison_value < stored_url_comparison_value:
-                            # Current is preferred, allow update
-                            should_process_and_store = True
-                        else:
-                            should_process_and_store = False  # Skip, stored is preferred
-
-                if not should_process_and_store:
-                    to_crawl_queue.task_done()
-                    continue
-
                 try:
-                    await page.goto(request_url, wait_until="networkidle")
-                    page_title = await page.title()
-                    # ... collect image URLs, deduplicate ...
-                    img_srcs = await page.evaluate('Array.from(document.querySelectorAll("img[src]")).map(img => img.src)')
-                    href_img_links = await page.evaluate('Array.from(document.querySelectorAll("a[href]")).map(a => a.href)')
-                    media_links = set(img_srcs) | set(href_img_links)
-                    page_image_urls = []
-                    for link in media_links:
-                        absolute_link = urljoin(request_url, link)
-                        if urlparse(absolute_link).path.lower().endswith(IMAGE_EXTENSIONS):
-                            page_image_urls.append(absolute_link)
-                    page_image_urls = list(set(page_image_urls)) # Deduplicate
-
+                    # Check early exit after fetching from queue
                     async with data_access_lock:
-                        # ... double-check max_urls_to_find ...
-                        found_pages_data[normalized_request_url] = {
-                            'normalized_url': normalized_request_url,
-                            'original_url': request_url,
-                            'title': page_title,
-                            'image_urls': page_image_urls
-                        }
-
-                    # Discover new links and enqueue
-                    hrefs = await page.evaluate('Array.from(document.querySelectorAll("a[href]")).map(a => a.href)')
-                    for href in hrefs:
-                        full_url = urljoin(request_url, href)
-                        if urlparse(full_url).path.lower().endswith(IMAGE_EXTENSIONS):
+                        if max_urls_to_find is not None and len(found_pages_data) >= max_urls_to_find:
+                            to_crawl_queue.task_done()
                             continue
-                        normalized_link = _normalize_url(full_url, **normalize_url_params)
-                        # Use fnmatch or robust regex for matching
-                        matched = any(fnmatch.fnmatch(full_url, glob) for glob in globs)
+
+                    normalized_request_url = _normalize_url(request_url, **normalize_url_params)
+                    should_process_and_store = True
+
+                    # Check for duplicate/less preferred URLs
+                    async with data_access_lock:
+                        if normalized_request_url in found_pages_data:
+                            stored_page_info = found_pages_data[normalized_request_url]
+                            current_url_comparison_value = _get_version_rank_and_numeric(
+                                request_url, 
+                                "view", 
+                                rules.get('version_preference_order', [])
+                            )
+                            stored_url_comparison_value = _get_version_rank_and_numeric(
+                                stored_page_info['original_url'], 
+                                "view", 
+                                rules.get('version_preference_order', [])
+                            )
+                            if current_url_comparison_value < stored_url_comparison_value:
+                                should_process_and_store = True
+                            else:
+                                should_process_and_store = False  # Skip, stored is preferred
+
+                    if not should_process_and_store:
+                        to_crawl_queue.task_done()
+                        continue
+
+                    try:
+                        await page.goto(request_url, wait_until="networkidle")
+                        page_title = await page.title()
+                        img_srcs = await page.evaluate('Array.from(document.querySelectorAll("img[src]")).map(img => img.src)')
+                        href_img_links = await page.evaluate('Array.from(document.querySelectorAll("a[href]")).map(a => a.href)')
+                        media_links = set(img_srcs) | set(href_img_links)
+                        page_image_urls = []
+                        for link in media_links:
+                            absolute_link = urljoin(request_url, link)
+                            if urlparse(absolute_link).path.lower().endswith(IMAGE_EXTENSIONS):
+                                page_image_urls.append(absolute_link)
+                        page_image_urls = list(set(page_image_urls))  # Deduplicate
+
                         async with data_access_lock:
-                            if matched and normalized_link not in visited_or_queued_urls:
-                                await to_crawl_queue.put(full_url)
-                                visited_or_queued_urls.add(normalized_link)
+                            found_pages_data[normalized_request_url] = {
+                                'normalized_url': normalized_request_url,
+                                'original_url': request_url,
+                                'title': page_title,
+                                'image_urls': page_image_urls
+                            }
+
+                        # Discover new links and enqueue
+                        hrefs = await page.evaluate('Array.from(document.querySelectorAll("a[href]")).map(a => a.href)')
+                        for href in hrefs:
+                            full_url = urljoin(request_url, href)
+                            if urlparse(full_url).path.lower().endswith(IMAGE_EXTENSIONS):
+                                continue
+                            normalized_link = _normalize_url(full_url, **normalize_url_params)
+                            matched = any(fnmatch.fnmatch(full_url, glob) for glob in globs)
+                            async with data_access_lock:
+                                # Only enqueue new URLs if we haven't reached max_urls_to_find
+                                if (
+                                    matched and
+                                    normalized_link not in visited_or_queued_urls and
+                                    (max_urls_to_find is None or len(found_pages_data) < max_urls_to_find)
+                                ):
+                                    await to_crawl_queue.put(full_url)
+                                    visited_or_queued_urls.add(normalized_link)
+
+                    except Exception as e:
+                        print(f"Worker {worker_id}: error processing {request_url}: {e}")
+
+                    finally:
+                        to_crawl_queue.task_done()
 
                 except Exception as e:
-                    print(f"Worker {worker_id}: error processing {request_url}: {e}")
-                finally:
+                    # If any error occurs after get(), mark task done and continue
+                    print(f"Worker {worker_id}: unexpected error after fetching from queue: {e}")
                     to_crawl_queue.task_done()
+
         finally:
             if page: await page.close()
             if context: await context.close()
@@ -263,8 +274,8 @@ async def run_crawler(
     # Cancel any worker tasks that are still running (e.g., waiting for new items).
     # This is a cleanup step after the queue has been processed.
     for w in workers:
-        if not w.done():
-            w.cancel()
+        #if not w.done():
+        w.cancel()
     
     # Gather all worker tasks to ensure they finish their cleanup (e.g., browser closing)
     # and to retrieve any exceptions.

@@ -1,3 +1,4 @@
+import json
 import os
 import requests
 import logging
@@ -103,35 +104,25 @@ def delete_anythingllm_files(workspacename, foldername, filename, file_json_name
 
     return success
 
-def update_anythingllm_pin(workspacename, foldername, filename, file_json_name):
+def update_anythingllm_pin(workspacename, foldername, file_json_name, pinstatus):
     url = url = f"https://aura.farrworks.com/api/v1/workspace/{workspacename}/update-pin"
     headers = {
         "Authorization": f"Bearer {ANYTHINGLLM_API_KEY}",
         "Accept": "application/json"
     }
-
-    pinned_filename = [
-        "README.md",
-        "technologies.md",
-        "PROJECT_PLAN.md"
-    ]
-
-    pinstatus = False
-    for f in pinned_filename:
-        if f in filename:
-            pinstatus = True
-            break
     
     data = {
         "docPath": f"{foldername}/{file_json_name}",
         "pinStatus": pinstatus
     }
 
-    logging.info(f"pining {foldername}/{file_json_name} in workspace {workspacename}: pinStatus: {pinstatus}")
+    #print(f"pining {foldername}/{file_json_name} in workspace {workspacename}: pinStatus: {pinstatus}")
     response = requests.post(url, headers=headers, json=data)
-    logging.info(f"update_anythingllm_pin response code {response.status_code}")
+    #print(f"update_anythingllm_pin response code {response.status_code}")
     if response.status_code == 200:
         return True
+    else:
+        print(response)
     return False
 
 def create_anythingllm_folder(foldername):

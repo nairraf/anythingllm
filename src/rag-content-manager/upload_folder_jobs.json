@@ -1,0 +1,21 @@
+[
+    {
+        "local_folder": "C:/me/Development/GitHub/anythingllm",
+        "anythingllm_folder": "anythingllm_rag",
+        "globs": ["**/*.md", "**/*.cs", "**/*.xaml", "**/*.py", "**/*.json"],
+        "job": "anythingllm_rag",
+        "workspaces": "rag",
+        "tags": [
+            "anythingllm",
+            "rag",
+            "python"
+        ],
+        "pins": {
+            "/src/rag-content-manager/crawler.py": ["rag"],
+            "/src/rag-content-manager/crawler_jobs.json": ["rag"],
+            "/src/rag-content-manager/db.py": ["rag"],
+            "/src/rag-content-manager/get_web_markdown.py": ["rag"],
+            "/src/rag-content-manager/main.py": ["rag"]
+        }
+    }
+]

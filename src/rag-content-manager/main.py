@@ -156,10 +156,17 @@ def download(db, jobs):
     """
     calls get_web_markdown for all pages in 'new' status and updates the database
     """
+    
+    print("\nDownload mode\n")
+
     # get all new pages
     if len(jobs) > 0:
         for job in jobs:
+            rowcount = db.get_pages_count(status="new", job=job)
+            count = 0
             for page in db.get_pages(status="new", job=job):
+                count += 1
+                print(f"{int(math.ceil(count/rowcount*100))}% Retrieving markdown for page: {page['normalized_url']}")
                 download_page(db, page)
     else:
         rowcount = db.get_pages_count(status="new")
