@@ -284,6 +284,29 @@ class DatabaseManager:
             print(f"database error: {e}")
             return None
         
+    def get_jobs_runtime(self):
+        """
+        returns a basic python list for all jobs and their last runtime
+        """
+
+        parameters = []
+
+        try:
+            self.cursor.execute(
+                f"""
+                   SELECT job, MAX(last_update) as last_update 
+                   FROM pages 
+                   GROUP BY job;
+                """, parameters
+            )
+            return [
+                {"job": row["job"], "last_update": row["last_update"]}
+                for row in self.cursor.fetchall()
+            ]
+        except sqlite3.Error as e:
+            print(f"database error: {e}")
+            return None
+        
     def update_uploaded_page(self, page_id: int, status: str, uploaded_hash: str) -> None:
         """
         set the complete flag for a specific page_id

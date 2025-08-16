@@ -1,4 +1,5 @@
 import asyncio
+from datetime import datetime, timedelta
 import json
 import math
 from pathlib import Path
@@ -56,7 +57,21 @@ async def crawl_site(db: DatabaseManager, job: dict, max_pages: int = None, dbup
 
     crawls the site, finds all the links for that specific job, and updates the database with discovered URL's
     """
-    print(f"    - performing crawl for job: {job['job']}")
+    print(f"    -  crawl job: {job['job']}")
+
+    ## get the last runtime for the crawl to see if we run or skip
+    jobs_last_update = db.get_jobs_runtime()
+    cutoff = datetime.now() - timedelta(days=30)
+    if not args.force:
+        for j in jobs_last_update:
+            if j['last_update'] and j['job']:
+                if job['job'] == j['job']:
+                    last_update_dt = datetime.strptime(j['last_update'], "%Y-%m-%d %H:%M:%S")
+                    if last_update_dt > cutoff:
+                        print(f"      - skipping run for job: {job['job']} - not time yet (>30 days)")
+                        return
+    
+    print(f"      - running crawl for job: {job['job']}")
 
     if max_pages is not None and max_pages > 0:
         print(f"      MAXURLS of {max_pages} detected!")
@@ -364,6 +379,17 @@ if __name__ == "__main__":
     """    Bypasses all database updates in crawler mode only, and prints the updates to console. 
     By default, without this parameter, database updates will be performed.
     If this parameter is detected on the command line, database updates are NOT performed
+    """
+    )
+
+    parser.add_argument(
+        "-f", "--force",
+        action="store_true",
+        help=
+    """    Force flag to bypass certain check and force actions.
+    Currently implemented;
+        Crawler Mode:
+          - ignore last database update, and will process crawler jobs no matter what
     """
     )
 
