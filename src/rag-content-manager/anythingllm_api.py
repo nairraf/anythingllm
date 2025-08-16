@@ -7,7 +7,7 @@ GITHUB_SECRET = os.getenv("GITHUB_SELOS_SECRET").encode()  # Must be bytes
 GITHUB_TOKEN = os.getenv("GITHUB_API_KEY")
 ANYTHINGLLM_API_KEY = os.getenv("ANYTHINGLLM_API_KEY")
 
-def upload_to_anythingllm(workspace_slug, content, anythingllm_folder, anythingllm_filename):
+def upload_to_anythingllm(workspaces, content, anythingllm_folder, anythingllm_filename):
     url = f"https://aura.farrworks.com/api/v1/document/upload/{anythingllm_folder}"
     headers = {
         "Authorization": f"Bearer {ANYTHINGLLM_API_KEY}",
@@ -17,14 +17,15 @@ def upload_to_anythingllm(workspace_slug, content, anythingllm_folder, anythingl
     files = {"file": (anythingllm_filename, content)}
     
     data = {
-        "addToWorkspaces": workspace_slug
+        "addToWorkspaces": workspaces
     }
-
+    #print(f"{workspaces} | {len(content)} | {anythingllm_folder} | {anythingllm_filename}")
     response = requests.post(url, headers=headers, files=files, data=data)
     logging.info(f"upload_to_anythingllm status code: {response.status_code}")
     if response.status_code == 200:
         return response.json()
     else:
+        #print(response)
         return {}
 
 def upload_link(link, url, workspaces):
@@ -41,7 +42,7 @@ def upload_link(link, url, workspaces):
 
     print(f"scraping site {link}")
     response = requests.post(url, headers=headers, json=json_data)
-    print(f"scrape status code: {response.status_code}")
+    #print(f"scrape status code: {response.status_code}")
     if response.status_code == 200:
         return True
     return False
@@ -81,6 +82,24 @@ def get_anythingllm_files(foldername):
         return response.json()
     else:
         return {}
+    
+def get_anythingllm_workspace_documents(workspace):
+    url = f"https://aura.farrworks.com/api/v1/workspace/{workspace}"
+    headers = {
+        "Authorization": f"Bearer {ANYTHINGLLM_API_KEY}",
+        "Accept": "application/json"
+    }
+    response = requests.get(url, headers=headers)
+    print(f"get_anythingllm_workspace_documents status code: {response.status_code}")
+    if response.status_code == 200:
+        response_json = response.json()
+        workspaces = response_json.get("workspace", [])
+        workspace = workspaces[0] if workspaces else {}
+        return workspace
+    else:
+        print(response)
+        return []
+
 
 def delete_anythingllm_files(workspaces, foldername, file_json_name):
     success = False
@@ -89,6 +108,7 @@ def delete_anythingllm_files(workspaces, foldername, file_json_name):
     workspace_list = workspaces.split(",")
 
     for workspacename in workspace_list:
+        workspacename = workspacename.strip()
         url = url = f"https://aura.farrworks.com/api/v1/workspace/{workspacename}/update-embeddings"
         headers = {
             "Authorization": f"Bearer {ANYTHINGLLM_API_KEY}",
@@ -101,10 +121,10 @@ def delete_anythingllm_files(workspaces, foldername, file_json_name):
             ]
         }
 
-        #print(f"unlink {foldername}/{file_json_name} for workspace {workspacename}")
+        print(f"unlink {foldername}/{file_json_name} for workspace {workspacename}")
         response = requests.post(url, headers=headers, json=data)
+        print(response)
         if response.status_code == 200:
-            #print(response)
             success = True
 
     return success

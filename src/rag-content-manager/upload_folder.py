@@ -87,7 +87,7 @@ def runjob(job):
         if docexists:
             print(f"Document {anythingllm_filename} exists, cleaning, deleting and re-uploading")
             # unlink the files from the workspace
-            anythingllm_api.delete_anythingllm_files(job['workspaces'], job['anythingllm_folder'], anythingllm_filename, curdoc.get("name"))
+            anythingllm_api.delete_anythingllm_files(job['workspaces'], job['anythingllm_folder'], curdoc.get("name"))
             filefrom = f"{job['anythingllm_folder']}/{curdoc.get('name')}"
             fileto = filefrom.replace(f"{job['anythingllm_folder']}/",f"{junk_folder_name}/")
             anythingllm_api.move_anythingllm_files(filefrom, fileto)
@@ -106,16 +106,17 @@ def runjob(job):
             #job: {job['job']}
             #---
         """
-        metatdata_bytes = metadata.encode('utf-8')
-        file_bytes = metatdata_bytes + file_bytes
+        metadata_bytes = metadata.encode('utf-8')
+        file_bytes = metadata_bytes + file_bytes
 
         print(f"⬆️ Uploading {filename} to {anythingllm_filename}...")
         response = anythingllm_api.upload_to_anythingllm(
-            workspace_slug=job['workspaces'],
+            workspaces=job['workspaces'],
             content=file_bytes,
             anythingllm_folder=job['anythingllm_folder'],
             anythingllm_filename=anythingllm_filename
         )
+
         uploaded_file_name = response.get("documents", [])[0].get('name')
         # check if we should pin this document:
         for file,workspaces in job['pins'].items():

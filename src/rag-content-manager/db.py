@@ -1,6 +1,7 @@
 from datetime import datetime
 import hashlib
 import json
+import re
 import sqlite3
 import textwrap
 from urllib.parse import urlparse
@@ -102,6 +103,15 @@ class DatabaseManager:
     def content_hash(self, content: str) -> str:
         encoded = content.encode('utf-8')
         return (hashlib.sha256(encoded)).hexdigest()
+    
+    def generate_title(self, raw_title, suffix=None):
+        # Remove special characters, replace spaces/dashes with underscores
+        title = re.sub(r'[^A-Za-z0-9 ]+', '', raw_title)
+        title = re.sub(r'\s+', '_', title.strip())
+        if suffix:
+            title = f"{title}_{suffix}"
+        return title
+
 
     def insert_new_page(
             self, 
@@ -128,7 +138,7 @@ class DatabaseManager:
                 self.site_id,
                 normalized_url,
                 original_url,
-                title,
+                self.generate_title(title),
                 status,
                 job,
                 json.dumps(tags),

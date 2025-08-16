@@ -219,7 +219,7 @@ def upload_page(db: DatabaseManager, page: list, anythingllm_docs: list):
             print(f"    - page content change detected, re-uploading")
             
             anythingllm_filename = f"{page['job']}-{page['title']}"
-            print(f"current file name: {anythingllm_filename}")
+            #print(f"current file name: {anythingllm_filename}")
             # move existing anythingllm doc to junk
 
             curdocs = []
@@ -239,16 +239,17 @@ def upload_page(db: DatabaseManager, page: list, anythingllm_docs: list):
                         foldername = page['job'], 
                         file_json_name = curdoc.get("name")
                     )
+                    #print(delete_status)
 
                     # move anythingllm document to junk folder
                     filefrom = f"{page['job']}/{curdoc.get('name')}"
                     fileto = filefrom.replace(f"{page['job']}/",f"{junk_folder_name}/")
                     move_status = anythingllm_api.move_anythingllm_files(filefrom, fileto)
-
-            return
+                    #print(move_status)
+            
             # upload new version for embedding
             anythingllm_api.upload_to_anythingllm(
-                workspace_slug=page['workspaces'],
+                workspaces=page['workspaces'],
                 content=page['content'],
                 anythingllm_folder=page['job'],
                 anythingllm_filename=f"{page['job']}-{page['title']}"
@@ -286,6 +287,28 @@ def upload(db, jobs):
         # get a list of all documents that exist in the anythingllm document folder
         response = anythingllm_api.get_anythingllm_files(job)
         anythingllm_docs = {} # initialize a blank list
+        job_list = get_links_json()
+        job_config = None
+        for j in job_list:
+            if job == j['job']:
+                job_config = j
+                break
+        
+        if job_config:
+            workspaces = [s.strip() for s in job_config['workspaces'].split(',') if s.strip()]
+        else:
+            print(f'could not find job match..skipping: {job}')
+            break
+
+        # workspaces_docs = []
+        # for w in workspaces:
+        #     print(f"getting docs for workspace '{w}'")
+        #     workspaces_docs.append(anythingllm_api.get_anythingllm_workspace_documents(w))
+
+        # print(len(workspaces_docs))
+        # for wd in workspaces_docs:
+        #     print(wd.get('slug'))
+        # quit()
 
         if "documents" in response:
             anythingllm_docs = response.get("documents", [])
@@ -301,7 +324,7 @@ def upload(db, jobs):
             upload_page(db, page, anythingllm_docs)
     
     # clear out the old items
-    anythingllm_api.delete_anythingllm_folder(junk_folder_name)
+    #anythingllm_api.delete_anythingllm_folder(junk_folder_name)
 
 # endgion Upload
 
