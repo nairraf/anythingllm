@@ -38,5 +38,45 @@
             "version_preference_order": ["net-maui-9.0"]
         }
         
+    },
+    {
+        "url": "https://learn.microsoft.com/en-us/dotnet/api/?view=net-9.0",
+        "globs": ["https://learn.microsoft.com/en-us/dotnet/api/**"],
+        "concurrency": 40,
+        "job": "mslearn-net-api",
+        "workspaces": "selos-main, selos-development, selos-experiments",
+        "tags": [
+            "C#",
+            ".NET",
+            "mslearn",
+            "docs",
+            "API"
+        ],
+        "url_normalization_rules": {
+            "sort_query_params": true,
+            "ignored_query_parameters": ["source", "tabs", "view"],
+            "remove_trailing_slash_from_paths": true,
+            "version_preference_order": ["net-9.0"]
+        }
+    },
+    {
+        "url": "https://learn.microsoft.com/en-us/dotnet/api/?view=aspnetcore-9.0",
+        "globs": ["https://learn.microsoft.com/en-us/dotnet/api/**"],
+        "concurrency": 40,
+        "job": "mslearn-aspnetcore-api",
+        "workspaces": "selos-main, selos-development, selos-experiments",
+        "tags": [
+            "C#",
+            "aspnetcore",
+            "mslearn",
+            "docs",
+            "API"
+        ],
+        "url_normalization_rules": {
+            "sort_query_params": true,
+            "ignored_query_parameters": ["source", "tabs", "view"],
+            "remove_trailing_slash_from_paths": true,
+            "version_preference_order": ["aspnetcore-9.0"]
+        }
     }
 ]
