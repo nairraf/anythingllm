@@ -9,6 +9,8 @@ import anythingllm_api
 # Define the path to the json job links configuration file
 JOBS_FILE = './upload_folder_jobs.json'
 
+CHUNK_SIZE = 1 * 1024 * 1024  # 1MB
+
 def find_files(base_dir, glob_patterns):
     """
     returns all files for a given base_dir recursively matching the glob patterns
@@ -39,7 +41,12 @@ def get_jobs() -> list[dict]:
         print(f"Error reading config file: {e}")
         exit(1)
 
-def runjob(job):
+def split_bytes(data, chunk_size):
+    """Yield successive chunk_size chunks from data."""
+    for i in range(0, len(data), chunk_size):
+        yield data[i:i + chunk_size]
+
+def runjob(job, args):
     """
     runs a specific filesystem upload job
     """
@@ -85,6 +92,10 @@ def runjob(job):
         
         ## move to junk if it exists
         if docexists:
+            if args.skip:
+                print(f"Document {anythingllm_filename} exists, skipping due to --skip flag")
+                continue
+
             print(f"Document {anythingllm_filename} exists, cleaning, deleting and re-uploading")
             # unlink the files from the workspace
             anythingllm_api.delete_anythingllm_files(job['workspaces'], job['anythingllm_folder'], curdoc.get("name"))
@@ -109,7 +120,26 @@ def runjob(job):
         metadata_bytes = metadata.encode('utf-8')
         file_bytes = metadata_bytes + file_bytes
 
-        print(f"⬆️ Uploading {filename} to {anythingllm_filename}...")
+        # if len(file_bytes) > CHUNK_SIZE:
+        #     file_chunks = list(split_bytes(file_bytes, CHUNK_SIZE))
+        #     total_chunks = len(file_chunks)
+
+        #     for idx, chunk in enumerate(file_chunks):
+        #         chunk_filename = f"{anythingllm_filename}_part{idx+1}_of_{total_chunks}"
+        #         chunk_metadata = (
+        #             metadata + f"\nchunk: {idx+1}\ntotal_chunks: {total_chunks}"
+        #         )
+        #         chunk_bytes = chunk_metadata.encode('utf-8') + chunk
+
+        #         print(f"⬆️ Uploading chunk {idx+1}/{total_chunks} of '{filename}' as '{chunk_filename}'")
+        #         response = anythingllm_api.upload_to_anythingllm(
+        #             workspaces=job['workspaces'],
+        #             content=chunk_bytes,
+        #             anythingllm_folder=job['anythingllm_folder'],
+        #             anythingllm_filename=chunk_filename
+        #         )
+        # else:
+        print(f"⬆️ Uploading {filename} to '{anythingllm_filename}'")
         response = anythingllm_api.upload_to_anythingllm(
             workspaces=job['workspaces'],
             content=file_bytes,
@@ -120,7 +150,6 @@ def runjob(job):
         uploaded_file_name = response.get("documents", [])[0].get('name')
         # check if we should pin this document:
         for file,workspaces in job['pins'].items():
-
             if relative_file_path.lower() == str(Path(file)).lower():
                 for w in workspaces:
                     print(f"Updating pins for file: {file} in workspaces: {w}")
@@ -150,6 +179,16 @@ if __name__ == "__main__":
         help="comma seperated list of job names to run. job names are defined in the json file"
     )
 
+    parser.add_argument(
+        "-s", "--skip",
+        action="store_true",
+        help=
+        """    skips upload if file with same name is already uploaded
+        This changes the default behaviour of deleting and overwriting the file
+        """
+
+    )
+
     args = parser.parse_args()
 
     job_list = get_jobs()
@@ -159,8 +198,8 @@ if __name__ == "__main__":
         for job in args.jobs:
             for jl in job_list:
                 if job == jl['job']:
-                    runjob(jl)
+                    runjob(jl, args)
     else:
         print("running all jobs")
         for jl in job_list:
-            runjob(jl)
+            runjob(jl, args)
