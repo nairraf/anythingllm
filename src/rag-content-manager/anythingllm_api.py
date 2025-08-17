@@ -25,7 +25,7 @@ def upload_to_anythingllm(workspaces, content, anythingllm_folder, anythingllm_f
     if response.status_code == 200:
         return response.json()
     else:
-        print(response)
+        #print(response)
         return {}
 
 def upload_link(link, url, workspaces):
