@@ -17,5 +17,19 @@
             "/src/rag-content-manager/get_web_markdown.py": ["rag"],
             "/src/rag-content-manager/main.py": ["rag"]
         }
+    },
+        {
+        "local_folder": "C:/me/Development/local_docs/python-3.10.18-docs-text",
+        "anythingllm_folder": "python_docs_3_10",
+        "globs": ["**/*.md", "**/*.cs", "**/*.xaml", "**/*.py", "**/*.json", "**/*.txt"],
+        "job": "python_docs_3_10",
+        "workspaces": "rag",
+        "tags": [
+            "anythingllm",
+            "rag",
+            "python"
+        ],
+        "pins": {
+        }
     }
 ]
