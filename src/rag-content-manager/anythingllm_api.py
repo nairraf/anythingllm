@@ -21,11 +21,11 @@ def upload_to_anythingllm(workspaces, content, anythingllm_folder, anythingllm_f
     }
     #print(f"{workspaces} | {len(content)} | {anythingllm_folder} | {anythingllm_filename}")
     response = requests.post(url, headers=headers, files=files, data=data)
-    logging.info(f"upload_to_anythingllm status code: {response.status_code}")
+    #print(f"upload_to_anythingllm status code: {response.status_code}")
     if response.status_code == 200:
         return response.json()
     else:
-        #print(response)
+        print(response)
         return {}
 
 def upload_link(link, url, workspaces):

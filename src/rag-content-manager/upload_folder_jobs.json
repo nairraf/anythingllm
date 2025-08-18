@@ -1,9 +1,11 @@
 [
     {
-        "local_folder": "C:/me/Development/GitHub/anythingllm",
+        "local_folder": {
+            "windows": "C:/me/Development/GitHub/anythingllm"
+        },
         "anythingllm_folder": "anythingllm_rag",
         "globs": ["**/*.md", "**/*.cs", "**/*.xaml", "**/*.py", "**/*.json"],
-        "job": "anythingllm_rag",
+        "job": "git_anythingllm_rag",
         "workspaces": "rag",
         "tags": [
             "anythingllm",
@@ -18,8 +20,10 @@
             "/src/rag-content-manager/main.py": ["rag"]
         }
     },
-        {
-        "local_folder": "C:/me/Development/local_docs/python-3.10.18-docs-text",
+    {
+        "local_folder": {
+            "windows": "C:/me/Development/local_docs/python-3.10.18-docs-text"
+        },
         "anythingllm_folder": "python_docs_3_10",
         "globs": ["**/*.md", "**/*.cs", "**/*.xaml", "**/*.py", "**/*.json", "**/*.txt"],
         "job": "python_docs_3_10",
@@ -28,6 +32,44 @@
             "anythingllm",
             "rag",
             "python"
+        ],
+        "pins": {
+        }
+    },
+    {
+        "local_folder": {
+            "windows": "C:/me/Development/github/selos-main",
+            "linux": "/home/ian/repos/selos-main"
+        },
+        "anythingllm_folder": "git-selos-main",
+        "git_branch": "main",
+        "globs": ["**/*.md", "**/*.cs", "**/*.xaml", "**/*.py", "**/*.json", "**/*.txt"],
+        "job": "selos-main",
+        "workspaces": "selos-main",
+        "tags": [
+            "selos",
+            "C#",
+            "maui",
+            "mobile"
+        ],
+        "pins": {
+        }
+    },
+    {
+        "local_folder": {
+            "windows": "C:/me/Development/github/selos-development",
+            "linux": "/home/ian/repos/selos-development"
+        },
+        "anythingllm_folder": "git-selos-development",
+        "git_branch": "development",
+        "globs": ["**/*.md", "**/*.cs", "**/*.xaml", "**/*.py", "**/*.json", "**/*.txt"],
+        "job": "selos-development",
+        "workspaces": "selos-development",
+        "tags": [
+            "selos",
+            "C#",
+            "maui",
+            "mobile"
         ],
         "pins": {
         }

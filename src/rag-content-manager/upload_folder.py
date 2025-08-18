@@ -5,6 +5,8 @@ import os
 from pathlib import Path
 import textwrap
 import anythingllm_api
+from git import Repo
+import platform
 
 # Define the path to the json job links configuration file
 JOBS_FILE = './upload_folder_jobs.json'
@@ -46,6 +48,18 @@ def split_bytes(data, chunk_size):
     for i in range(0, len(data), chunk_size):
         yield data[i:i + chunk_size]
 
+def get_os_name():
+    os_name = platform.system().lower()
+    if "windows" in os_name:
+        return "windows"
+    elif "linux" in os_name:
+        return "linux"
+    elif "darwin" in os_name:
+        return "mac"
+    else:
+        return "other"
+
+
 def runjob(job, args):
     """
     runs a specific filesystem upload job
@@ -63,12 +77,25 @@ def runjob(job, args):
     ## create anythingllm junk folder. you can't delete files, but you can move files, create folders and delete folders...
     ## so, for files that require re-indexing, we move the files to the junk folder, re-upload them, and after the run is done
     ## delete the junk folder which deletes the files
-    junk_folder_name = "junk"
+    junk_folder_name = "JUNK"
     anythingllm_api.create_anythingllm_folder(junk_folder_name)
 
-    local_fs_path = Path(job['local_folder'])
+    detected_os = get_os_name()
+    local_fs_path = None
+    if detected_os == 'windows':
+        local_fs_path = Path(job['local_folder']['windows'])
+    
+    if detected_os == 'linux':
+        local_fs_path = Path(job['local_folder']['linux'])
+    
+    if local_fs_path == None:
+        print('Error: could not detect OS!')
+        quit()
+    
     root_folder_name = local_fs_path.name
+    print(f"- Detected OS: {detected_os}, local_path: {local_fs_path}")
 
+    #quit()
     for file in find_files(local_fs_path, job['globs']):
         relative_file_path = file.replace(f'{local_fs_path}','')
         filename = os.path.basename(relative_file_path)
@@ -152,7 +179,9 @@ def runjob(job, args):
         for file,workspaces in job['pins'].items():
             if relative_file_path.lower() == str(Path(file)).lower():
                 for w in workspaces:
-                    print(f"Updating pins for file: {file} in workspaces: {w}")
+                    w = w.strip()
+                    print(f"Updating pins for file: {file} in workspaces: '{w}'")
+                    print(f" - pin file_path: {uploaded_file_name}")
                     anythingllm_api.update_anythingllm_pin(
                         workspacename=w,
                         foldername=job['anythingllm_folder'],
@@ -162,7 +191,7 @@ def runjob(job, args):
                 break
 
     # clear out the old items
-    anythingllm_api.delete_anythingllm_folder(junk_folder_name)
+    #anythingllm_api.delete_anythingllm_folder(junk_folder_name)
 
 
 if __name__ == "__main__":
@@ -180,6 +209,12 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
+        "-l", "--list",
+        action="store_true",
+        help="displays all configured jobs and then exits. cannot be used with any other option"
+    )
+
+    parser.add_argument(
         "-s", "--skip",
         action="store_true",
         help=
@@ -192,6 +227,14 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     job_list = get_jobs()
+
+    if args.list:
+        header = "Configured Jobs"
+        print(f"\n{header}")
+        print("-"*len(header))
+        for j in job_list:
+            print(j['job'])
+        quit()
 
     if len(args.jobs) > 0:
         print("running specific jobs")
