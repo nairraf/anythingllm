@@ -4,7 +4,7 @@
         "globs": ["https://learn.microsoft.com/en-us/dotnet/communitytoolkit/**"],
         "concurrency": 40,
         "job": "mslearn-maui-community",
-        "workspaces": "selos-main, selos-development, selos-experiments",
+        "workspaces": "selos-development",
         "tags": [
             "C#",
             "MAUI",
@@ -24,7 +24,7 @@
         "globs": ["https://learn.microsoft.com/en-us/dotnet/maui/**"],
         "concurrency": 40,
         "job": "mslearn-maui-docs",
-        "workspaces": "selos-main, selos-development, selos-experiments",
+        "workspaces": "selos-development",
         "tags": [
             "C#",
             "MAUI",
@@ -44,7 +44,7 @@
         "globs": ["https://learn.microsoft.com/en-us/dotnet/api/***net-9.0"],
         "concurrency": 40,
         "job": "mslearn-net-api",
-        "workspaces": "selos-main, selos-development, selos-experiments",
+        "workspaces": "selos-development",
         "tags": [
             "C#",
             ".NET",
@@ -64,7 +64,7 @@
         "globs": ["https://learn.microsoft.com/en-us/dotnet/api/***aspnetcore-9.0"],
         "concurrency": 40,
         "job": "mslearn-aspnetcore-api",
-        "workspaces": "selos-main, selos-development, selos-experiments",
+        "workspaces": "selos-development",
         "tags": [
             "C#",
             "aspnetcore",
@@ -77,6 +77,23 @@
             "ignored_query_parameters": ["source", "tabs", "view"],
             "remove_trailing_slash_from_paths": true,
             "version_preference_order": ["aspnetcore-9.0"]
+        }
+    },
+    {
+        "url": "https://docs.anythingllm.com/",
+        "globs": ["https://docs.anythingllm.com/**"],
+        "concurrency": 40,
+        "job": "anythingllm-docs",
+        "workspaces": "rag",
+        "tags": [
+            "anythingllm",
+            "official documentation"
+        ],
+        "url_normalization_rules": {
+            "sort_query_params": true,
+            "ignored_query_parameters": ["source", "tabs", "view"],
+            "remove_trailing_slash_from_paths": true,
+            "version_preference_order": []
         }
     }
 ]

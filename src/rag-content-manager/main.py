@@ -169,6 +169,14 @@ def download_page(db, page):
             status="scraped"
         )
     except Exception as e:
+        try:
+            db.update_page(
+            page_id=page['page_id'],
+            content="",
+            status="error"
+        )
+        except Exception as dbe:
+            print(f"could not insert error into DB: {dbe}")
         print(f"Error Encountered: {e}")
 
 def download(db, jobs):
