@@ -1,5 +1,6 @@
 import argparse
 import glob
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -7,11 +8,13 @@ import textwrap
 import anythingllm_api
 from git import Repo
 import platform
+from db import DatabaseManager
+
+# where the SQLite database resides
+DB_File = Path('../../db/sites.db')
 
 # Define the path to the json job links configuration file
 JOBS_FILE = './upload_folder_jobs.json'
-
-CHUNK_SIZE = 1 * 1024 * 1024  # 1MB
 
 def find_files(base_dir, glob_patterns):
     """
@@ -24,7 +27,7 @@ def find_files(base_dir, glob_patterns):
 
 def get_jobs() -> list[dict]:
     """
-    retrieves the list of jobs from the crawler_jobs.json file
+    retrieves the list of jobs from the JOBS_FILE
     """
     jobs = []
     try:
@@ -43,11 +46,6 @@ def get_jobs() -> list[dict]:
         print(f"Error reading config file: {e}")
         exit(1)
 
-def split_bytes(data, chunk_size):
-    """Yield successive chunk_size chunks from data."""
-    for i in range(0, len(data), chunk_size):
-        yield data[i:i + chunk_size]
-
 def get_os_name():
     os_name = platform.system().lower()
     if "windows" in os_name:
@@ -59,8 +57,16 @@ def get_os_name():
     else:
         return "other"
 
+def get_file_hash(file_bytes):
+    """
+    Computes SHA256 hash of a bytes object.
+    Returns the hex digest string.
+    """
+    sha = hashlib.sha256()
+    sha.update(file_bytes)
+    return sha.hexdigest()
 
-def runjob(job, args):
+def runjob(job, args, db):
     """
     runs a specific filesystem upload job
     """
@@ -116,23 +122,8 @@ def runjob(job, args):
                     docexists = True
                     curdoc = doc
                     break
-        
-        ## move to junk if it exists
-        if docexists:
-            if args.skip:
-                print(f"Document {anythingllm_filename} exists, skipping due to --skip flag")
-                continue
 
-            print(f"Document {anythingllm_filename} exists, cleaning, deleting and re-uploading")
-            # unlink the files from the workspace
-            anythingllm_api.delete_anythingllm_files(job['workspaces'], job['anythingllm_folder'], curdoc.get("name"))
-            filefrom = f"{job['anythingllm_folder']}/{curdoc.get('name')}"
-            fileto = filefrom.replace(f"{job['anythingllm_folder']}/",f"{junk_folder_name}/")
-            anythingllm_api.move_anythingllm_files(filefrom, fileto)
-        else:
-            print(f"Document {anythingllm_filename} Doesn't Exist, uploading to workspace: {job['anythingllm_folder']}")
-
-        ## upload the new file
+        ## get file content and compute current hash
         with open(file, "rb") as f:
             file_bytes = f.read()
 
@@ -146,27 +137,33 @@ def runjob(job, args):
         """
         metadata_bytes = metadata.encode('utf-8')
         file_bytes = metadata_bytes + file_bytes
+        file_hash = get_file_hash(file_bytes)
 
-        # if len(file_bytes) > CHUNK_SIZE:
-        #     file_chunks = list(split_bytes(file_bytes, CHUNK_SIZE))
-        #     total_chunks = len(file_chunks)
-
-        #     for idx, chunk in enumerate(file_chunks):
-        #         chunk_filename = f"{anythingllm_filename}_part{idx+1}_of_{total_chunks}"
-        #         chunk_metadata = (
-        #             metadata + f"\nchunk: {idx+1}\ntotal_chunks: {total_chunks}"
-        #         )
-        #         chunk_bytes = chunk_metadata.encode('utf-8') + chunk
-
-        #         print(f"⬆️ Uploading chunk {idx+1}/{total_chunks} of '{filename}' as '{chunk_filename}'")
-        #         response = anythingllm_api.upload_to_anythingllm(
-        #             workspaces=job['workspaces'],
-        #             content=chunk_bytes,
-        #             anythingllm_folder=job['anythingllm_folder'],
-        #             anythingllm_filename=chunk_filename
-        #         )
-        # else:
         print(f"⬆️ Uploading {filename} to '{anythingllm_filename}'")
+
+        uploaded_file = db.get_file(job['anythingllm_folder'], anythingllm_filename)
+ 
+        if uploaded_file:
+            # compare file hashes to see if we need to re-upload
+            if file_hash == uploaded_file["uploaded_hash"]:
+                print("  - file hashes are the same, skipping anythingllm upload")
+                continue
+        
+        ## we are doing the upload, check if the file exits and move to junk to prepare for new upload
+        if docexists:
+            if args.skip:
+                print(f"  - Document {anythingllm_filename} exists, skipping due to --skip flag")
+                continue
+
+            print(f"  - Document {anythingllm_filename} exists, cleaning, deleting and re-uploading")
+            # unlink the files from the workspace and move to the junk folder
+            anythingllm_api.delete_anythingllm_files(job['workspaces'], job['anythingllm_folder'], curdoc.get("name"))
+            filefrom = f"{job['anythingllm_folder']}/{curdoc.get('name')}"
+            fileto = filefrom.replace(f"{job['anythingllm_folder']}/",f"{junk_folder_name}/")
+            anythingllm_api.move_anythingllm_files(filefrom, fileto)
+        else:
+            print(f"  - Document {anythingllm_filename} Doesn't Exist, uploading to workspace: {job['anythingllm_folder']}")
+
         response = anythingllm_api.upload_to_anythingllm(
             workspaces=job['workspaces'],
             content=file_bytes,
@@ -174,27 +171,41 @@ def runjob(job, args):
             anythingllm_filename=anythingllm_filename
         )
 
-        uploaded_file_name = response.get("documents", [])[0].get('name')
-        # check if we should pin this document:
-        for file,workspaces in job['pins'].items():
-            if relative_file_path.lower() == str(Path(file)).lower():
-                for w in workspaces:
-                    w = w.strip()
-                    print(f"Updating pins for file: {file} in workspaces: '{w}'")
-                    print(f" - pin file_path: {uploaded_file_name}")
-                    anythingllm_api.update_anythingllm_pin(
-                        workspacename=w,
-                        foldername=job['anythingllm_folder'],
-                        file_json_name=uploaded_file_name,
-                        pinstatus=True
-                    )
-                break
+        if response:
+            print("  - file uploaded successfully")
+            db.insert_file(
+                uploaded_hash = file_hash,
+                anythingllm_folder = job['anythingllm_folder'],
+                anythingllm_file_name = anythingllm_filename, 
+                original_file_name = filename,
+                status = "uploaded"
+            )
+            
+            uploaded_file_name = response.get("documents", [])[0].get('name')
+            # check if we should pin this document:
+            for file,workspaces in job['pins'].items():
+                if relative_file_path.lower() == str(Path(file)).lower():
+                    for w in workspaces:
+                        w = w.strip()
+                        print(f"  - Updating pins for file: {file} in workspaces: '{w}'")
+                        print(f"     - pin file_path: {uploaded_file_name}")
+                        anythingllm_api.update_anythingllm_pin(
+                            workspacename=w,
+                            foldername=job['anythingllm_folder'],
+                            file_json_name=uploaded_file_name,
+                            pinstatus=True
+                        )
+                    break
+        else:
+            print(f"  - !! Error uploading file {anythingllm_filename} to {job['anythingllm_folder']}")
 
     # clear out the old items
-    #anythingllm_api.delete_anythingllm_folder(junk_folder_name)
+    anythingllm_api.delete_anythingllm_folder(junk_folder_name)
 
 
 if __name__ == "__main__":
+    db = DatabaseManager(DB_File)
+
     # get the passed command line parameters
     parser = argparse.ArgumentParser(
         description="local folder uploader to anythingllm",
@@ -241,8 +252,8 @@ if __name__ == "__main__":
         for job in args.jobs:
             for jl in job_list:
                 if job == jl['job']:
-                    runjob(jl, args)
+                    runjob(jl, args, db)
     else:
         print("running all jobs")
         for jl in job_list:
-            runjob(jl, args)
+            runjob(jl, args, db)

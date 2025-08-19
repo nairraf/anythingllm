@@ -26,7 +26,7 @@ def upload_to_anythingllm(workspaces, content, anythingllm_folder, anythingllm_f
         return response.json()
     else:
         print(response)
-        return {}
+        return None
 
 def upload_link(link, url, workspaces):
     url = f"http://localhost:3001/api/v1/document/upload-link"
@@ -121,9 +121,9 @@ def delete_anythingllm_files(workspaces, foldername, file_json_name):
             ]
         }
 
-        print(f"unlink {foldername}/{file_json_name} for workspace {workspacename}")
+        #print(f"unlink {foldername}/{file_json_name} for workspace {workspacename}")
         response = requests.post(url, headers=headers, json=data)
-        print(response)
+        #print(response)
         if response.status_code == 200:
             success = True
 
@@ -202,7 +202,7 @@ def move_anythingllm_files(from_json,to_json):
         ]
     }
 
-    print(f"moving from: {from_json} to: {to_json}")
+    #print(f"moving from: {from_json} to: {to_json}")
     response = requests.post(url, headers=headers, json=data)
     logging.info(f"move_anythingllm_files response code {response.status_code}")
     if response.status_code == 200:

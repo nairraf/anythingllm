@@ -25,3 +25,14 @@ CREATE TABLE pages (
 	UNIQUE(normalized_url)
 	CONSTRAINT pages_sites_FK FOREIGN KEY (site_id) REFERENCES sites(site_id)
 );
+
+CREATE TABLE files (
+	file_id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+	uploaded_hash INTEGER,
+	anythingllm_folder TEXT,
+	anythingllm_file_name TEXT,
+	original_file_name TEXT,
+	status TEXT,
+	last_update DATETIME
+);
+CREATE UNIQUE INDEX files_git_repo_IDX ON files (anythingllm_folder,anythingllm_file_name);

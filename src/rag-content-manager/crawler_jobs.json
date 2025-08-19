@@ -17,7 +17,6 @@
             "remove_trailing_slash_from_paths": true,
             "version_preference_order": ["net-maui-9.0"]
         }
-        
     },
     {
         "url": "https://learn.microsoft.com/en-us/dotnet/maui/?view=net-maui-9.0",

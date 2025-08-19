@@ -333,6 +333,72 @@ class DatabaseManager:
             print(f"database error: {e}")
             self.conn.rollback()
             return None
+        
+    def insert_file(self, uploaded_hash, anythingllm_folder, anythingllm_file_name, original_file_name, status):
+        """
+        updates the file table with the purpose of tracking anythingllm uploads
+        right now this requires git repositories to ensure file unique naming
+        uses a seperate cursor to ensure it doesn't break any other cursor
+        """
+        try:
+            cursor = self.conn.cursor()
+
+            now = datetime.now()
+            sqlite_datetime_str = now.strftime('%Y-%m-%d %H:%M:%S')
+
+            parameters = (
+                uploaded_hash,
+                anythingllm_folder,
+                anythingllm_file_name,
+                original_file_name,
+                status,
+                sqlite_datetime_str,
+            )
+            cursor.execute(
+                """
+                    INSERT INTO files 
+                    (uploaded_hash, anythingllm_folder, anythingllm_file_name, original_file_name, status, last_update) 
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    ON CONFLICT (anythingllm_folder, anythingllm_file_name) DO UPDATE SET
+                        uploaded_hash = excluded.uploaded_hash,
+                        original_file_name = excluded.original_file_name,
+                        status = excluded.status,
+                        last_update = excluded.last_update
+                """, parameters
+            )
+            # since this is a seperate operation, it will be lost when the cursor closes/method exists, so we force a commit
+            self.conn.commit()
+            return True
+        except sqlite3.Error as e:
+            print(f"database error: {e}")
+            self.conn.rollback()
+            return None
+        
+    def get_file(self, anythingllm_folder, anythingllm_file_name):
+        """
+        returns the columns for an anythingllm file to detect file content changes
+        uses a seperate cursor to ensure it doesn't break any other cursor
+        """
+        
+        parameters = [
+            anythingllm_folder,
+            anythingllm_file_name
+        ]
+
+        try:
+            self.cursor.execute(
+                f"""
+                   SELECT uploaded_hash, original_file_name, status, last_update 
+                   FROM files
+                   WHERE anythingllm_folder = ? AND anythingllm_file_name = ?
+                """, parameters
+            )
+            
+            return self.cursor.fetchone()
+        except sqlite3.Error as e:
+            print(f"database error: {e}")
+            return None
+
 
     def commit(self) -> bool:
         try:

@@ -38,27 +38,8 @@
     },
     {
         "local_folder": {
-            "windows": "C:/me/Development/github/selos-main",
-            "linux": "/home/ian/repos/selos-main"
-        },
-        "anythingllm_folder": "git-selos-main",
-        "git_branch": "main",
-        "globs": ["**/*.md", "**/*.cs", "**/*.xaml", "**/*.py", "**/*.json", "**/*.txt"],
-        "job": "selos-main",
-        "workspaces": "selos-main",
-        "tags": [
-            "selos",
-            "C#",
-            "maui",
-            "mobile"
-        ],
-        "pins": {
-        }
-    },
-    {
-        "local_folder": {
-            "windows": "C:/me/Development/github/selos-development",
-            "linux": "/home/ian/repos/selos-development"
+            "windows": "C:/me/Development/github/selos",
+            "linux": "/home/ian/repos/selos"
         },
         "anythingllm_folder": "git-selos-development",
         "git_branch": "development",
@@ -72,6 +53,11 @@
             "mobile"
         ],
         "pins": {
+            "/README.md": ["selos-development"],
+            "/docs/staff/Ian Farr.md": ["selos-development"],
+            "/docs/staff/Erin Asher.md": ["selos-development"],
+            "/docs/architecture/technologies.md": ["selos-development"],
+            "/docs/PROJECT_PLAN.ms": ["selos-development"]
         }
     }
 ]
