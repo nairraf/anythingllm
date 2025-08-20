@@ -19,6 +19,27 @@
         }
     },
     {
+        "url": "https://learn.microsoft.com/en-us/aspnet/core/blazor/?view=aspnetcore-9.0",
+        "globs": ["https://learn.microsoft.com/en-us/aspnet/core/blazor/**"],
+        "concurrency": 40,
+        "job": "mslearn-blazor-docs",
+        "workspaces": "selos-development",
+        "tags": [
+            "C#",
+            "MAUI",
+            "mslearn",
+            "blazor",
+            "aspnetcore",
+            "hybrid"
+        ],
+        "url_normalization_rules": {
+            "sort_query_params": true,
+            "ignored_query_parameters": ["source", "tabs", "view"],
+            "remove_trailing_slash_from_paths": true,
+            "version_preference_order": ["aspnetcore-9.0"]
+        }
+    },
+    {
         "url": "https://learn.microsoft.com/en-us/dotnet/maui/?view=net-maui-9.0",
         "globs": ["https://learn.microsoft.com/en-us/dotnet/maui/**"],
         "concurrency": 40,

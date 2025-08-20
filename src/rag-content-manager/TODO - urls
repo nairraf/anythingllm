@@ -1,0 +1,108 @@
+"https://github.com/dotnet/maui/releases",
+"https://github.com/jsuarezruiz/awesome-dotnet-maui",
+"https://github.com/jfversluis/built-with-maui",
+"https://github.com/jfversluis/learn-dotnet-maui",
+"https://github.com/jsuarezruiz/dotnet-maui-showcase",
+"https://github.com/CommunityToolkit/Maui",  # Community toolkit
+"https://github.com/AdrienTorris/awesome-blazor",
+"https://github.com/CommunityToolkit/Maui",
+"https://github.com/jamesmontemagno/MediaPlugin",  # Camera/Media
+"https://github.com/jamesmontemagno/ConnectivityPlugin",  # Network
+"https://github.com/CrossGeeks/PermissionsPlugin",  # Permissions
+"https://github.com/jamesmontemagno/SettingsPlugin",  # Settings storage
+"https://github.com/AdrienTorris/awesome-blazor#libraries--extensions",
+"https://github.com/jsuarezruiz/netmaui-animation-samples",
+"https://github.com/Baseflow/LottieXamarin",  # Primary Lottie for MAUI
+"https://github.com/martijn00/LottieXamarin/wiki",  # Implementation guide
+"https://github.com/mono/SkiaSharp.Extended",  # SkiaSharp Lottie support
+"https://github.com/Keyyl/Blazor.Lottie",  # Blazor Lottie wrapper
+"https://github.com/airbnb/lottie-web",  # Official web implementation
+"https://github.com/Baseflow/LottieXamarin",  # Works with MAUI
+"https://github.com/Garderoben/MudBlazor.Extensions",  # MudBlazor extensions with animations
+"https://github.com/jsuarezruiz/netmaui-controls-gallery",  # Control examples
+"https://github.com/dotnet/Microsoft.Maui.Graphics",  # Custom drawing
+"https://github.com/jsuarezruiz/AlohaKit.Controls",  # AlohaKit controls
+"https://github.com/FreakyAli/Maui.FreakyControls",  # FreakyControls
+"https://github.com/VladislavAntonyuk/MauiSamples",  # Advanced samples
+"https://github.com/MudBlazor/MudBlazor",  # MudBlazor source
+"https://github.com/Megabit/Blazorise",  # Blazorise source
+"https://github.com/radzenhq/radzen-blazor",  # Radzen source
+     "https://github.com/CommunityToolkit/dotnet",
+ "https://github.com/syncfusion/maui-toolkit",
+    "https://github.com/jsuarezruiz/TemplateMAUI",
+    "https://github.com/xceedsoftware/Xceed-Toolkit-for-.NET-MAUI",
+    "https://github.com/DevExpress/maui-demo-app",  # DevExpress samples
+    "https://github.com/MaterialDesignInXAML/MaterialDesignInXamlToolkit",
+    "https://github.com/berkaroad/RichTextKit",  # Rich text for MAUI
+     "https://github.com/dotnet/aspnetcore/tree/main/src/Components/samples",
+    "https://github.com/dotnet/maui/wiki/Known-Issues",
+    "https://github.com/dotnet/maui/issues?q=is%3Aissue+label%3Abug+is%3Aclosed",
+    "https://github.com/dotnet/aspnetcore/issues?q=blazor+is%3Aclosed+label%3Abug",
+     "https://github.com/dotnet/maui/discussions/2720",  # Rich text discussions
+     "https://github.com/CommunityToolkit/Maui/discussions/categories/feature-requests",
+    "https://github.com/search?q=bible+maui&type=repositories",  # Bible app examples
+    "https://github.com/search?q=devotional+blazor&type=repositories",  # Devotional apps
+    "https://github.com/Azure-Samples/cognitive-services-dotnet-sdk-samples",
+    "https://github.com/aspnet/SignalR-samples",
+    "https://github.com/jsuarezruiz/netmaui-ui-challenges",  # UI challenges
+    "https://github.com/jsuarezruiz/netmaui-beautiful-ui",   # Beautiful UI samples
+    "https://github.com/dotnet/maui-samples",  # Official samples
+    "https://github.com/dotnet-presentations/blazor-workshop/tree/main/docs",
+    "https://github.com/unoplatform/Uno.Samples",  # Cross-platform UI patterns
+    "https://github.com/VladislavAntonyuk/MauiSamples/tree/main/MauiAnimations",
+    "https://github.com/dotnet-presentations/blazor-hybrid-workshop",
+    "https://github.com/dotnet-presentations/dotnet-maui-workshop",
+
+
+
+"https://www.nuget.org/packages?q=maui",  # Package discovery
+    "https://www.syncfusion.com/maui-controls",  # UI components
+    "https://www.syncfusion.com/blogs/post/syncfusion-open-source-net-maui-controls-cross-platform",
+    "https://blazor.net/",
+    "https://www.telerik.com/blazor-ui",
+    "https://mudblazor.com/",
+    "https://www.nuget.org/packages?q=Tags%3A%22maui%22",
+    "https://www.nuget.org/packages?q=Tags%3A%22dotnet-maui%22",
+    "https://mudblazor.com/",  # Material Design components
+    "https://blazorise.com/",  # Bootstrap components
+    "https://www.radzen.com/blazor-components/",  # Radzen components
+    "https://www.telerik.com/blazor-ui",  # Telerik UI for Blazor
+    "https://www.syncfusion.com/blazor-components",  # Syncfusion
+        "https://www.nuget.org/packages?q=blazor",
+    "https://devblogs.microsoft.com/dotnet/announcing-dotnet-maui-community-toolkit/",
+    "https://www.nuget.org/packages/SkiaSharp.Extended.UI.Maui/",  # Lottie support
+      "https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_Animations",
+    "https://animate.style/",  # Popular CSS animation library
+      "https://greensock.com/gsap/",  # GSAP animations (via JS interop)
+    "https://animejs.com/",  # Anime.js (via JS interop)
+    "https://blazorise.com/docs/components/animate",  # Blazorise animations
+    "https://css-tricks.com/almanac/properties/a/animation/",
+    "https://www.framer.com/motion/",  # Concepts applicable via JS interop
+    "https://lottiefiles.com/",  # Main Lottie resource hub
+    "https://airbnb.design/lottie/",  # Official Lottie documentation
+    "https://lottiefiles.com/featured",  # Featured animations for inspiration
+    "https://www.nuget.org/packages/Lottie.Forms/",  # Lottie Forms package
+    "https://www.nuget.org/packages/SkiaSharp.Extended.UI.Maui/",  # MAUI SkiaSharp
+    "https://www.npmjs.com/package/lottie-web",  # Web Lottie (for JS interop)
+    "https://www.adobe.com/products/aftereffects.html",  # After Effects export
+    "https://aescripts.com/bodymovin/",  # After Effects Bodymovin plugin
+    "https://lottiefiles.com/tools/lottie-creator",  # Online Lottie creator
+
+     "https://sass-lang.com/documentation/",  # SCSS for advanced styling
+
+      "https://www.syncfusion.com/maui-controls",  # Syncfusion MAUI
+   
+    "https://www.telerik.com/maui-ui",  # Telerik MAUI
+    "https://www.devexpress.com/maui/",  # DevExpress MAUI
+
+    "https://m3.material.io/",  # Material Design 3
+
+    "https://quilljs.com/",  # Quill editor (Blazor JS interop)
+    "https://www.tiny.cloud/",  # TinyMCE (Blazor JS interop)
+    "https://lottiefiles.com/search?q=microphone&category=animations",  # Voice animations
+    "https://lottiefiles.com/search?q=recording&category=animations",  # Recording animations
+    "https://lottiefiles.com/search?q=book&category=animations",  # Book animations
+    "https://lottiefiles.com/search?q=spiritual&category=animations",  # Spiritual themes
+
+    "https://blazor.radzen.com/",  # Interactive demos
+    "https://try.mudblazor.com/",  # MudBlazor demos

@@ -57,7 +57,87 @@
             "/docs/staff/Ian Farr.md": ["selos-development"],
             "/docs/staff/Erin Asher.md": ["selos-development"],
             "/docs/architecture/technologies.md": ["selos-development"],
-            "/docs/PROJECT_PLAN.ms": ["selos-development"]
+            "/docs/PROJECT_PLAN.md": ["selos-development"]
+        }
+    },
+    {
+        "local_folder": {
+            "windows": "C:/me/Development/github/maui-samples",
+            "linux": "/home/ian/repos/maui-samples"
+        },
+        "anythingllm_folder": "git-maui-samples",
+        "git_branch": "main",
+        "globs": ["**/*.md", "**/*.cs", "**/*.xaml", "**/*.py", "**/*.json", "**/*.txt"],
+        "job": "git-maui-samples",
+        "workspaces": "selos-development",
+        "tags": [
+            "C#",
+            "maui",
+            "mobile",
+            "samples",
+            "sample code"
+        ],
+        "pins": {
+        }
+    },
+    {
+        "local_folder": {
+            "windows": "C:/me/Development/github/Maui-CommunityToolkit",
+            "linux": "/home/ian/repos/Maui-CommunityToolkit"
+        },
+        "anythingllm_folder": "git-Maui-CommunityToolkit",
+        "git_branch": "main",
+        "globs": ["**/*.md", "**/*.cs", "**/*.xaml", "**/*.py", "**/*.json", "**/*.txt"],
+        "job": "git-Maui-CommunityToolkit",
+        "workspaces": "selos-development",
+        "tags": [
+            "C#",
+            "maui",
+            "mobile",
+            "samples",
+            "sample code",
+            "Community Toolkit"
+        ],
+        "pins": {
+        }
+    },
+    {
+        "local_folder": {
+            "windows": "C:/me/Development/github/dotnet-communitytoolkit",
+            "linux": "/home/ian/repos/dotnet-communitytoolkit"
+        },
+        "anythingllm_folder": "git-dotnet-communitytoolkit",
+        "git_branch": "main",
+        "globs": ["**/*.md", "**/*.cs", "**/*.xaml", "**/*.py", "**/*.json", "**/*.txt"],
+        "job": "git-dotnet-communitytoolkit",
+        "workspaces": "selos-development",
+        "tags": [
+            "C#",
+            "dotnet",
+            "samples",
+            "sample code",
+            "Community Toolkit"
+        ],
+        "pins": {
+        }
+    },
+    {
+        "local_folder": {
+            "windows": "C:/me/Development/github/dotnet-maui-showcase",
+            "linux": "/home/ian/repos/dotnet-maui-showcase"
+        },
+        "anythingllm_folder": "git-dotnet-maui-showcase",
+        "git_branch": "main",
+        "globs": ["**/*.md", "**/*.cs", "**/*.xaml", "**/*.py", "**/*.json", "**/*.txt"],
+        "job": "git-dotnet-maui-showcase",
+        "workspaces": "selos-development",
+        "tags": [
+            "C#",
+            "maui",
+            "samples",
+            "sample code"
+        ],
+        "pins": {
         }
     }
 ]
